@@ -40,7 +40,7 @@ diagnostic_data_desc = settings['diagnostic_data_desc']
 initial_sample_count = settings['initial_sample_count']
 solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
-
+solps_n_proc = settings['solps_n_proc']
 
 # first check if the training data file exists already, or needs to be created
 if not isfile(output_directory + training_data_file):
@@ -86,7 +86,8 @@ while True:
 
     # Run SOLPS for the new point
     run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, run_directory = run_directory,
-                       output_directory = output_directory, solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt)
+                       output_directory = output_directory, solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
+                       n_proc = solps_n_proc)
 
     # evaluate the chi-squared
     log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,

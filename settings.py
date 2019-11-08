@@ -22,6 +22,9 @@ solps_n_timesteps = 3000
 # SOLPS time step
 solps_dt = 5.0E-5
 
+# Number of cores to execute SOLPS on
+solps_n_proc = 6
+
 # Number of random-search evaluations which will be used to create an
 # initial set of training data for the GP-optimisation
 initial_sample_count = 15

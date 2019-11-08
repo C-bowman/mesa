@@ -234,7 +234,7 @@ def write_solps_b2mn_dat(filename,
 
 
 def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, timeout_hours = 10, run_directory = None, 
-              output_directory = None, solps_n_timesteps = 1000, solps_dt = 1.0E-5):
+              output_directory = None, solps_n_timesteps = 1000, solps_dt = 1.0E-5, n_proc = 1):
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
 
@@ -306,8 +306,12 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
         copystatefiles.communicate()
 
     findstr = 'Submitted batch job'
-    n_proc = 6
-    start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"',stdout=subprocess.PIPE,shell=True)  
+
+    if n_proc == 1:
+        start_run = subprocess.Popen('itmsubmit',stdout=subprocess.PIPE,shell=True)
+    if n_proc > 1:
+        start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"',stdout=subprocess.PIPE,shell=True)
+
     start_run_output = start_run.communicate()[0]
 
     # Find the batch job number
