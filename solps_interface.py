@@ -361,31 +361,13 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
     chdir(orig_dir)
 
 
-
-
-
-
-def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_file = None,
-                           diagnostic_data_desc = None):
+def read_solps_data(filename = None):
     """
-    :param int iteration: \
-        iteration number of the solps run for which the posterior log-probability is calculated.
-
-    :param str directory: \
-        Path to the directory in which the solps results, diagnostic data and training data
-        are stored.
-
-    :param str diagnostic_data_file: \
-        File name of the diagnostic data file.
-
-    :return: The posterior log-probability
+    Reads data from SOLPS output files
     """
-
-    # build the path of the solps output file
-    solps_path = directory + 'solps_run_{}.nc'.format(iteration)
 
     # load solps data
-    f = netcdf.netcdf_file(solps_path,'r')
+    f = netcdf.netcdf_file(filename,'r')
     crx = deepcopy(f.variables['crx'].data)
     cry = deepcopy(f.variables['cry'].data)
     vol = deepcopy(f.variables['vol'].data)
@@ -415,6 +397,51 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     # Calculate the centres of the SOLPS grid cells
     solps_cen_x = mean(crx,0)
     solps_cen_y = mean(cry,0)
+
+    # Populate the output list
+    output = {}
+    output['vertex_x'] = crx
+    output['vertex_y'] = cry
+    output['ne']       = solps_ne
+    output['na']       = solps_na
+    output['species']  = solps_species
+    output['te']       = solps_te
+    output['ti']       = solps_ti
+    output['vi']       = solps_vi
+    output['natm']     = solps_dab2
+    output['nmol']     = solps_dmb2
+    output['sion']     = eirene_sion
+    output['prad']     = prad
+    output['sep_indx'] = sep
+    output['omp_indx'] = omp
+    output['cen_x']    = solps_cen_x
+    output['cen_y']    = solps_cen_y
+    
+    return output
+
+
+
+def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_file = None,
+                           diagnostic_data_desc = None):
+    """
+    :param int iteration: \
+        iteration number of the solps run for which the posterior log-probability is calculated.
+
+    :param str directory: \
+        Path to the directory in which the solps results, diagnostic data and training data
+        are stored.
+
+    :param str diagnostic_data_file: \
+        File name of the diagnostic data file.
+
+    :return: The posterior log-probability
+    """
+
+    # build the path of the solps output file
+    solps_path = directory + 'solps_run_{}.nc'.format(iteration)
+
+    # read the SOLPS data
+    solps_data = read_solps_data(solps_path)
 
     indx = diagnostic_data_desc.index('Data Time')
     data_time = float(diagnostic_data_file[indx])
@@ -466,7 +493,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     solps_grid_psin = solps_cen_x*0.0
     for i in arange(shape(solps_cen_x)[0]):
         for j in arange(shape(solps_cen_x)[1]):
-            solps_grid_psin[i,j] = gpsin_intrp(solps_cen_x[i,j],solps_cen_y[i,j])
+            solps_grid_psin[i,j] = gpsin_intrp(solps_data['cen_x'][i,j],solps_data['cen_y'][i,j])
 
     # Read the equilibrium of the data
     indx = diagnostic_data_desc.index('Equilibrium')
@@ -501,9 +528,11 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     thomson_te   = squeeze(ts_te[ts_tindx,ts_zindx])
     thomson_ete  = squeeze(ts_ete[ts_tindx,ts_zindx])
 
+    omp = solps_data['omp_indx']
+
     solps_psin_mp_profile = squeeze(solps_grid_psin[:,omp])
-    solps_ne_mp_profile   = squeeze(solps_ne[:,omp])
-    solps_te_mp_profile   = squeeze(solps_te[:,omp])
+    solps_ne_mp_profile   = squeeze(solps_data['ne'][:,omp])
+    solps_te_mp_profile   = squeeze(solps_data['te'][:,omp])
 
     # Calculate log-probability for the Thomson data
     interpne = interp1d(solps_psin_mp_profile,solps_ne_mp_profile)
