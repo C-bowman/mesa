@@ -4,7 +4,7 @@ from time import sleep, time
 import subprocess
 import filecmp
 from scipy.io import netcdf, loadmat
-from numpy import arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where
+from numpy import array, arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where, zeros
 from scipy.interpolate import interp1d, interp2d
 from copy import deepcopy
 
@@ -563,3 +563,110 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     log_posterior = mp_density_logprob + mp_e_temperature_logprob
 
     return log_posterior # return the log-posterior
+
+
+
+
+
+
+def build_solps_mesh(solps_file):
+    from mesh_tools.mesh import Triangle, TriangularMesh
+
+    # load solps data
+    f = netcdf.netcdf_file(solps_file,'r')
+    crx = deepcopy(f.variables['crx'].data)
+    cry = deepcopy(f.variables['cry'].data)
+
+    # Close the file
+    f.close()
+    f.flush()
+
+    # Calculate the centres of the SOLPS grid cells
+    R = mean(crx,axis=0)
+    z = mean(cry,axis=0)
+
+    # build a mesh by splitting SOLPS grid cells
+    triangles = []
+    for i in range(R.shape[0]-1):
+        for j in range(R.shape[1]-1):
+            p1 = (R[i,j], z[i,j])
+            p2 = (R[i+1,j], z[i+1,j])
+            p3 = (R[i,j+1], z[i,j+1])
+            p4 = (R[i+1,j+1], z[i+1,j+1])
+            triangles.append( Triangle(p1, p2, p3) )
+            triangles.append( Triangle(p2, p3, p4) )
+
+    return TriangularMesh(triangles = triangles)
+
+
+
+
+
+
+def evaluate_midas_posterior(midas_input_file, solps_file):
+    posterior = build_midas_posterior(midas_input_file)
+    theta = build_midas_parameters(posterior, solps_file)
+    return posterior(theta)
+
+
+
+
+
+
+def build_midas_posterior(midas_input_file):
+    from runpy import run_path
+    from os.path import isfile
+
+    if isfile(midas_input_file):  # check to see if the given path is valid
+        settings = run_path(midas_input_file)  # run the settings module
+    else:
+        raise ValueError('{} is not a valid path to an input module'.format(midas_input_file))
+
+    if 'posterior' not in settings:
+        raise ValueError('"posterior" was not found in the input module')
+
+    return settings['posterior']
+
+
+
+
+
+
+def build_midas_parameters(posterior, solps_file):
+    # get all the fields required by the posterior
+    field_tags = [ tag for tag in posterior.plasma.parameters.keys() ]
+
+    # load solps data
+    f = netcdf.netcdf_file(solps_file,'r')
+    R = deepcopy(f.variables['crx'].data)
+    z = deepcopy(f.variables['cry'].data)
+    solps_ne = deepcopy(f.variables['ne'].data)
+    solps_te = deepcopy(f.variables['te'].data)
+
+    # Close the file
+    f.close()
+    f.flush()
+
+    # Calculate the centres of the SOLPS grid cells
+    R = mean(R,axis=0)
+    z = mean(z,axis=0)
+
+    # build a map from the vertex coords to the grid indices
+    map = {}
+    for i in range(R.shape[0]):
+        for j in range(R.shape[1]):
+            map[(R[i,j],z[i,j])] = (i,j)
+
+    # get a list of the grid indices for each vertex in order
+    vertex_order = [map[v] for v in posterior.plasma.mesh.vertices]
+
+    # prepare the field vectors
+    mesh_fields = {
+        'Te' : array([solps_te[i,j] for i,j in vertex_order]),
+        'ne' : array([solps_ne[i,j] for i,j in vertex_order])
+    }
+
+    # construct the parameter vector
+    theta = zeros(posterior.plasma.N_params)
+    for tag in field_tags:
+        theta[posterior.plasma.slices[tag]] = mesh_fields[tag]
