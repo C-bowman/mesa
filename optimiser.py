@@ -10,14 +10,17 @@ from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.mcmc import GibbsChain, ParallelTempering
+from inference.pdf_tools import BinaryTree
 
 def bounds_transform(v, bounds, inverse=False):
     if inverse:
         return array([b[0] + (b[1]-b[0])*k for k,b in zip(v, bounds)])
     else:
-        return array([(k-b[0])/(b[1] - b[0]) for k, b in zip(v, bounds)])
+        return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
 
-
+def grid_transform(point):
+    tree = BinaryTree(limits = (0.,1.), layers = 6)
+    return tuple([tree.lookup(v)[2] for v in point])
 
 # Get data from the settings module
 if len(argv) == 1: # check to see if the settings module path was given
@@ -72,6 +75,9 @@ while True:
 
     # convert the data to the normalised coordinates:
     points = [bounds_transform(p,optimisation_bounds) for p in points]
+
+    # build the set of grid-transformed points
+    grid_set = set( grid_transform(p) for p in points )
 
     # if requested, normalise the training data to have zero mean
     if normalise_training_data:
@@ -135,6 +141,18 @@ while True:
 
     # get predicted chi-squared at the new point
     mu_lp, sigma_lp = GPopt.gp(new_point)
+
+    # check to see if the grid-transformed new point is already in the evaluated set
+    if grid_transform(new_point) in grid_set:
+        raise ValueError(
+            """
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            The latest proposed evaluation is a point which has been
+            previously evaluated - this may indicate that a local
+            maximum has been reached.
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            """
+        )
 
     # add the mean back to the prediction if the data was normalised
     if normalise_training_data:
