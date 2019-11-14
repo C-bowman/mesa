@@ -3,6 +3,9 @@
 # directory where the SOLPS runs are stored
 solps_run_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/gpfit/'
 
+# directory where a reference SOLPS run is stored
+solps_ref_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/ref_clean/'
+
 # directory where the SOLPS output data and training data are stored
 solps_output_directory = '/pfs/work/g2hjame/solpsopt_runs/tcv_58196_1.2s/'
 
@@ -24,6 +27,9 @@ solps_dt = 5.0E-5
 
 # Number of cores to execute SOLPS on
 solps_n_proc = 6
+
+# Number of optimiser iterations before clearning the run directory
+solps_iter_reset = 5
 
 # Number of random-search evaluations which will be used to create an
 # initial set of training data for the GP-optimisation

@@ -7,7 +7,7 @@ from os.path import isfile
 from sys import argv
 
 from profile_models import linear_transport_profile, profile_radius_axis
-from solps_interface import run_solps, evaluate_log_posterior
+from solps_interface import run_solps, evaluate_log_posterior, reset_solps
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.mcmc import GibbsChain, ParallelTempering
 
@@ -40,7 +40,9 @@ for key in keys:
 
 # extract the required information from settings
 run_directory = settings['solps_run_directory']
+ref_directory = settings['solps_ref_directory']
 output_directory = settings['solps_output_directory']
+
 optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
@@ -49,6 +51,8 @@ initial_sample_count = settings['initial_sample_count']
 solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
+solps_iter_reset = settings['solps_iter_reset']
+
 max_iterations = settings['max_iterations']
 acquisition_function = settings['acquisition_function']
 normalise_training_data = settings['normalise_training_data']
@@ -176,3 +180,6 @@ while True:
     df.loc[df.index.max()+1] = row_dict  # add the new row
     df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data
     del df
+
+    if i % solps_iter_reset == 0:
+        reset_solps(run_directory,ref_directory)

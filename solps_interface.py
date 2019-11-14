@@ -360,6 +360,27 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
 
     chdir(orig_dir)
 
+def reset_solps(run_directory, ref_directory):
+    """
+    Clears the contents of a SOLPS run directory and replaces it with the files from a reference
+    case. To be used if the optimiser has executed too many SOLPS runs that the run_directory
+    becomes too large.
+    """
+
+    orig_dir = getcwd()
+
+    # Go to the run directory
+    chdir(run_directory)
+
+    # Clear the contents of the run directory
+    test = subprocess.Popen('rm -rf *',stdout=subprocess.PIPE,shell=True)
+    jobqueue = test.communicate()[0]
+
+    # Copy the contents of the reference case
+    test = subprocess.Popen('cp '+ref_directory+'* .',stdout=subprocess.PIPE,shell=True)
+    jobqueue = test.communicate()[0]
+    
+    chdir(orig_dir)
 
 def read_solps_data(filename = None):
     """
@@ -419,7 +440,10 @@ def read_solps_data(filename = None):
     
     return output
 
+def read_expt_data(diagnostic_data_file = None, diagnostic_data_desc = None):
 
+    # Read varios data files here...
+    print('hello')
 
 def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_file = None,
                            diagnostic_data_desc = None):
@@ -442,7 +466,8 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
 
     # read the SOLPS data
     solps_data = read_solps_data(solps_path)
-
+    
+    # read the data from experiments
     indx = diagnostic_data_desc.index('Data Time')
     data_time = float(diagnostic_data_file[indx])
 
@@ -490,9 +515,9 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     gpsin = gpsi_n[:,:,gpsi_tindx]
     gpsin_intrp = interp2d(gpsi_r,gpsi_z,gpsin.transpose())
 
-    solps_grid_psin = solps_cen_x*0.0
-    for i in arange(shape(solps_cen_x)[0]):
-        for j in arange(shape(solps_cen_x)[1]):
+    solps_grid_psin = solps_data['cen_x']*0.0
+    for i in arange(shape(solps_data['cen_x'])[0]):
+        for j in arange(shape(solps_data['cen_x'])[1]):
             solps_grid_psin[i,j] = gpsin_intrp(solps_data['cen_x'][i,j],solps_data['cen_y'][i,j])
 
     # Read the equilibrium of the data

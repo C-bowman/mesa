@@ -7,7 +7,7 @@ from os.path import isfile
 from sys import argv
 
 from profile_models import linear_transport_profile, profile_radius_axis
-from solps_interface import run_solps, evaluate_log_posterior
+from solps_interface import run_solps, evaluate_log_posterior, reset_solps
 
 def hypercube_sample(bounds):
     return [ b[0] + (b[1]-b[0])*random() for b in bounds ]
@@ -33,11 +33,15 @@ for key in keys:
 # extract the required information from settings
 run_directory = settings['solps_run_directory']
 output_directory = settings['solps_output_directory']
+ref_directory = settings['solps_ref_directory']
+
 optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
 diagnostic_data_desc = settings['diagnostic_data_desc']
 initial_sample_count = settings['initial_sample_count']
+solps_iter_reset = settings['solps_iter_reset']
+
 solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
@@ -107,3 +111,6 @@ while True:
 
     df.loc[i] = row_dict # add the new row
     df.to_hdf(output_directory + training_data_file, key='training', mode='w') # save the data
+
+    if i % solps_iter_reset == 0:
+        reset_solps(run_directory,ref_directory)
