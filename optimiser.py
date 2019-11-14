@@ -50,11 +50,13 @@ optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
 diagnostic_data_desc = settings['diagnostic_data_desc']
+solps_n_species = settings['solps_n_species']
 initial_sample_count = settings['initial_sample_count']
 solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
 solps_iter_reset = settings['solps_iter_reset']
+solps_div_transport = settings['fit_solps_div_transport']
 
 max_iterations = settings['max_iterations']
 acquisition_function = settings['acquisition_function']
@@ -167,17 +169,21 @@ while True:
 
     # produce transport profiles defined by new point
     radius = profile_radius_axis()
-    L = len(new_point)//2
-    chi = linear_transport_profile(radius, new_point[:L])
-    D = linear_transport_profile(radius, new_point[L:])
+
+    chi = linear_transport_profile(radius, new_point[0:9])
+    D = linear_transport_profile(radius, new_point[9:18])
+    dna = new_point[18]
+    hci = new_point[19]
+    hce = new_point[20]
 
     # get the current iteration number
     i = df['iteration'].max()+1
 
     # Run SOLPS for the new point
-    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, run_directory = run_directory,
-                       output_directory = output_directory, solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
-                       n_proc = solps_n_proc)
+    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce, 
+                       run_directory = run_directory, output_directory = output_directory, 
+                       solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
+                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = solps_div_transport)
 
     # evaluate the chi-squared
     new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
@@ -187,8 +193,9 @@ while True:
     # build a new row for the dataframe
     row_dict = {
         'iteration' : i,
-        'conductivity_parameters' : new_point[:L],
-        'diffusivity_parameters' : new_point[L:],
+        'conductivity_parameters' : new_point[0:9],
+        'diffusivity_parameters' : new_point[9:18],
+        'div_parameters' : new_point[18:21],
         'log_posterior' : new_log_posterior,
         'prediction_mean' : mu_lp,
         'prediction_error' : sigma_lp,

@@ -233,7 +233,9 @@ def write_solps_b2mn_dat(filename,
 
 
 
-def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, timeout_hours = 10, run_directory = None, 
+def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
+              dna = 1.0, hci = 1.0, hce = 1.0, n_species = 1,
+              timeout_hours = 10, run_directory = None, set_div_transport = False,
               output_directory = None, solps_n_timesteps = 1000, solps_dt = 1.0E-5, n_proc = 1):
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
@@ -259,9 +261,6 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
         time-out error.
     """
 
-    # set solps running here
-    n_species = 9
-
     # Write the SOLPS input files
     write_solps_b2mn_dat(run_directory+'b2mn.dat',
                          solps_n_timesteps,      # Number of timesteps
@@ -275,12 +274,12 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
 
     write_solps_transport_paramters(run_directory+'b2.transport.parameters',
                                     n_species, # Number of species - should be in settings!
-                                    15.0,
+                                    dna,
                                     0,
                                     0,
                                     1.0,
-                                    15.0,
-                                    15.0,
+                                    hci,
+                                    hce,
                                     0,
                                     0)
 
@@ -291,7 +290,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
                                     chi_r,chi,
                                     set_ana_visc_dperp=True,
                                     no_pflux=True,
-                                    no_div=False)
+                                    no_div=set_div_transport)
 
     # Go to the SOLPS run directory to prepare execution
     orig_dir = getcwd()

@@ -31,6 +31,9 @@ solps_n_proc = 6
 # Number of optimiser iterations before clearning the run directory
 solps_iter_reset = 5
 
+# Allow the transport in the divertor to vary
+fit_solps_div_transport = True
+
 # Number of random-search evaluations which will be used to create an
 # initial set of training data for the GP-optimisation
 initial_sample_count = 15
@@ -92,4 +95,9 @@ optimisation_bounds = [
     (0.002, 0.04), # transport barrier width
     (1e-3, 0.05),  # radius gap between left-midpoint and transport barrier
     (1e-3, 0.05),  # radius gap between right-midpoint and transport barrier
+
+    # Divertor transport boundaries
+    (0.1,50.0),   # radial particle diffusion
+    (0.1,50.0),   # radial ion heat diffusion
+    (0.1,50.0),   # radial electron heat diffusion
 ]
