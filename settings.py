@@ -44,6 +44,10 @@ solps_n_proc = 6
 # Number of optimiser iterations before cleaning the run directory
 solps_iter_reset = 5
 
+# Sets whether the divertor transport coefficients are overridden by those
+# used for the PFR
+set_divertor_transport = False
+
 
 
 
@@ -136,7 +140,7 @@ optimisation_bounds = [
 # will be used in running SOLPS.
 
 fixed_parameter_values = [
-    # Chi-profile parameter boundaries
+    # Chi-profile parameters
     None,   # left boundary height from barrier level
     None,   # right boundary height from barrier level
     None,   # left-middle height as a fraction of barrier-boundary gap
@@ -147,7 +151,7 @@ fixed_parameter_values = [
     None,   # radius gap between left-midpoint and transport barrier
     None,   # radius gap between right-midpoint and transport barrier
 
-    # D-profile parameter boundaries
+    # D-profile parameters
     None,   # left boundary height from barrier level
     None,   # right boundary height from barrier level
     None,   # left-middle height as a fraction of barrier-boundary gap
@@ -158,7 +162,7 @@ fixed_parameter_values = [
     None,   # radius gap between left-midpoint and transport barrier
     None,   # radius gap between right-midpoint and transport barrier
 
-    # Divertor transport boundaries
+    # Divertor transport parameters
     None,   # radial particle diffusion
     None,   # radial ion heat diffusion
     None,   # radial electron heat diffusion

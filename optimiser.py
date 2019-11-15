@@ -35,7 +35,7 @@ else:
 keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
         'diagnostic_data_file', 'diagnostic_data_desc', 'initial_sample_count','solps_n_timesteps','solps_dt',
         'acquisition_function', 'normalise_training_data', 'cross_validation', 'covariance_kernel',
-        'trust_region', 'trust_region_width', 'fixed_parameter_values']
+        'trust_region', 'trust_region_width', 'fixed_parameter_values', 'set_divertor_transport']
 
 for key in keys:
     if key not in settings:
@@ -55,6 +55,7 @@ solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
 solps_iter_reset = settings['solps_iter_reset']
+set_divertor_transport = settings['set_divertor_transport']
 
 # optimiser settings
 max_iterations = settings['max_iterations']
@@ -206,7 +207,7 @@ while True:
     run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce,
                        run_directory = run_directory, output_directory = output_directory,
                        solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
-                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = True)
+                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     # evaluate the chi-squared
     new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
