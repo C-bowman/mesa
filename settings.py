@@ -28,15 +28,12 @@ solps_dt = 5.0E-5
 # Number of cores to execute SOLPS on
 solps_n_proc = 6
 
-# Number of optimiser iterations before clearning the run directory
+# Number of optimiser iterations before cleaning the run directory
 solps_iter_reset = 5
-
-# Allow the transport in the divertor to vary
-fit_solps_div_transport = True
 
 # Number of random-search evaluations which will be used to create an
 # initial set of training data for the GP-optimisation
-initial_sample_count = 15
+initial_sample_count = 25
 
 # Maximum number of iterations after which the optimisation terminates
 max_iterations = 200
@@ -100,4 +97,41 @@ optimisation_bounds = [
     (0.1,50.0),   # radial particle diffusion
     (0.1,50.0),   # radial ion heat diffusion
     (0.1,50.0),   # radial electron heat diffusion
+]
+
+
+# The 'fixed_parameter_values' list allows a sub-set of the parameters to be fixed at
+# particular values, thereby removing them from the optimisation problem.
+
+# If the value in the list is set to 'None', that parameter will be optimised as normal.
+# If any value other than 'None' is given, the parameter will be fixed and the given value
+# will be used in running SOLPS.
+
+fixed_parameter_values = [
+    # Chi-profile parameter boundaries
+    None,   # left boundary height from barrier level
+    None,   # right boundary height from barrier level
+    None,   # left-middle height as a fraction of barrier-boundary gap
+    None,   # right-middle height as a fraction of barrier-boundary gap
+    None,   # transport barrier centre
+    None,   # transport barrier height
+    None,   # transport barrier width
+    None,   # radius gap between left-midpoint and transport barrier
+    None,   # radius gap between right-midpoint and transport barrier
+
+    # D-profile parameter boundaries
+    None,   # left boundary height from barrier level
+    None,   # right boundary height from barrier level
+    None,   # left-middle height as a fraction of barrier-boundary gap
+    None,   # right-middle height as a fraction of barrier-boundary gap
+    None,   # transport barrier centre
+    None,   # transport barrier height
+    None,   # transport barrier width
+    None,   # radius gap between left-midpoint and transport barrier
+    None,   # radius gap between right-midpoint and transport barrier
+
+    # Divertor transport boundaries
+    None,   # radial particle diffusion
+    None,   # radial ion heat diffusion
+    None,   # radial electron heat diffusion
 ]

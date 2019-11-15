@@ -1,5 +1,5 @@
 
-from numpy import array, concatenate, mean
+from numpy import array, concatenate, mean, zeros
 from pandas import read_hdf
 
 from runpy import run_path
@@ -35,36 +35,47 @@ else:
 keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
         'diagnostic_data_file', 'diagnostic_data_desc', 'initial_sample_count','solps_n_timesteps','solps_dt',
         'acquisition_function', 'normalise_training_data', 'cross_validation', 'covariance_kernel',
-        'trust_region', 'trust_region_width']
+        'trust_region', 'trust_region_width', 'fixed_parameter_values']
 
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
 
-# extract the required information from settings
+# data & results filepaths
 run_directory = settings['solps_run_directory']
 ref_directory = settings['solps_ref_directory']
 output_directory = settings['solps_output_directory']
-
-optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
 diagnostic_data_desc = settings['diagnostic_data_desc']
+
+# SOLPS settings
 solps_n_species = settings['solps_n_species']
-initial_sample_count = settings['initial_sample_count']
 solps_n_timesteps = settings['solps_n_timesteps']
 solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
 solps_iter_reset = settings['solps_iter_reset']
-solps_div_transport = settings['fit_solps_div_transport']
 
+# optimiser settings
 max_iterations = settings['max_iterations']
+initial_sample_count = settings['initial_sample_count']
+fixed_parameter_values = settings['fixed_parameter_values']
+optimisation_bounds = settings['optimisation_bounds']
 acquisition_function = settings['acquisition_function']
 normalise_training_data = settings['normalise_training_data']
 cross_validation = settings['cross_validation']
 covariance_kernel = settings['covariance_kernel']
 trust_region = settings['trust_region']
 trust_region_width = settings['trust_region_width']
+
+
+
+
+# build the indices for the varied vs fixed parameters:
+varied_inds  = array([ i for i,v in enumerate(fixed_parameter_values) if v is None])
+fixed_inds   = array([ i for i,v in enumerate(fixed_parameter_values) if v is not None])
+fixed_values = array([ v for i,v in enumerate(fixed_parameter_values) if v is not None])
+
 
 
 # start the optimisation loop
@@ -75,15 +86,20 @@ while True:
     if df['iteration'].max() >= max_iterations: break
     # extract the training data
     log_posterior = df['log_posterior'].to_numpy().copy()
-    points = []
-    for X, D in zip(df['conductivity_parameters'], df['diffusivity_parameters']):
-        points.append( concatenate([X,D]) )
+
+    parameters = []
+    for X, D, H in zip(df['conductivity_parameters'], df['diffusivity_parameters'], df['div_parameters']):
+        parameters.append( concatenate([X,D,H]) )
 
     # convert the data to the normalised coordinates:
-    points = [bounds_transform(p,optimisation_bounds) for p in points]
+    normalised_parameters = [bounds_transform(p,optimisation_bounds) for p in parameters]
 
     # build the set of grid-transformed points
-    grid_set = set( grid_transform(p) for p in points )
+    grid_set = set( grid_transform(p) for p in normalised_parameters )
+
+    # get the training points by extracting the parameters which are to be optimised
+    # from the normalised parameter vectors:
+    training_points = [v[varied_inds] for v in normalised_parameters]
 
     # if requested, normalise the training data to have zero mean
     if normalise_training_data:
@@ -91,7 +107,7 @@ while True:
         log_posterior -= data_mean
 
     # construct the GP
-    GP = GpRegressor(points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
+    GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
 
     # define a set of temperature levels
     N_levels = 4
@@ -128,13 +144,13 @@ while True:
     trhw = 0.5*trust_region_width
     if trust_region:
         max_ind = log_posterior.argmax()
-        max_point = points[max_ind]
+        max_point = training_points[max_ind]
         search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
     else:
-        search_bounds = [(0.,1.) for i in range(18)]
+        search_bounds = [(0.,1.) for i in range(len(varied_inds))]
 
     # build the GP-optimiser
-    GPopt = GpOptimiser(points, log_posterior, hyperpars = mode, bounds=search_bounds,
+    GPopt = GpOptimiser(training_points, log_posterior, hyperpars = mode, bounds=search_bounds,
                         cross_val = cross_validation, kernel = covariance_kernel)
 
     # get the new evaluation point by maximising the acquisition function
@@ -148,8 +164,18 @@ while True:
     # get predicted chi-squared at the new point
     mu_lp, sigma_lp = GPopt.gp(new_point)
 
+    # convert the new point to a new parameter vector
+    new_normalised_parameters = zeros(len(fixed_parameter_values))
+    new_normalised_parameters[varied_inds] = new_point
+
+    # back-transform to get the new point as model parameters
+    new_parameters = bounds_transform(new_normalised_parameters, optimisation_bounds, inverse=True)
+
+    # now insert the values of the fixed parameters
+    new_parameters[fixed_inds] = fixed_values
+
     # check to see if the grid-transformed new point is already in the evaluated set
-    if grid_transform(new_point) in grid_set:
+    if grid_transform(bounds_transform(new_parameters, optimisation_bounds)) in grid_set:
         raise ValueError(
             """
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,26 +190,23 @@ while True:
     if normalise_training_data:
         mu_lp += data_mean
 
-    # back-transform to get the new point as model parameters
-    new_point = bounds_transform(new_point, optimisation_bounds, inverse=True)
-
     # produce transport profiles defined by new point
     radius = profile_radius_axis()
 
-    chi = linear_transport_profile(radius, new_point[0:9])
-    D = linear_transport_profile(radius, new_point[9:18])
-    dna = new_point[18]
-    hci = new_point[19]
-    hce = new_point[20]
+    chi = linear_transport_profile(radius, new_parameters[0:9])
+    D = linear_transport_profile(radius, new_parameters[9:18])
+    dna = new_parameters[18]
+    hci = new_parameters[19]
+    hce = new_parameters[20]
 
     # get the current iteration number
     i = df['iteration'].max()+1
 
     # Run SOLPS for the new point
-    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce, 
-                       run_directory = run_directory, output_directory = output_directory, 
+    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce,
+                       run_directory = run_directory, output_directory = output_directory,
                        solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
-                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = solps_div_transport)
+                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = True)
 
     # evaluate the chi-squared
     new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
@@ -193,9 +216,9 @@ while True:
     # build a new row for the dataframe
     row_dict = {
         'iteration' : i,
-        'conductivity_parameters' : new_point[0:9],
-        'diffusivity_parameters' : new_point[9:18],
-        'div_parameters' : new_point[18:21],
+        'conductivity_parameters' : new_parameters[0:9],
+        'diffusivity_parameters' : new_parameters[9:18],
+        'div_parameters' : new_parameters[18:21],
         'log_posterior' : new_log_posterior,
         'prediction_mean' : mu_lp,
         'prediction_error' : sigma_lp,

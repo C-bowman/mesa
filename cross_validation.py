@@ -30,7 +30,7 @@ else:
 
 # check that the settings module contains all the required information
 keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'diagnostic_data_file', 'max_iterations',
-        'normalise_training_data', 'cross_validation', 'covariance_kernel']
+        'normalise_training_data', 'cross_validation', 'covariance_kernel', 'fixed_parameter_values']
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
@@ -44,8 +44,13 @@ max_iterations = settings['max_iterations']
 normalise_training_data = settings['normalise_training_data']
 cross_validation = settings['cross_validation']
 covariance_kernel = settings['covariance_kernel']
+fixed_parameter_values = settings['fixed_parameter_values']
 
 
+# build the indices for the varied vs fixed parameters:
+varied_inds  = array([ i for i,v in enumerate(fixed_parameter_values) if v is None])
+fixed_inds   = array([ i for i,v in enumerate(fixed_parameter_values) if v is not None])
+fixed_values = array([ v for i,v in enumerate(fixed_parameter_values) if v is not None])
 
 
 # load the training data
@@ -53,12 +58,16 @@ df = read_hdf(output_directory+training_data_file)
 
 # extract the training data
 log_posterior = df['log_posterior'].to_numpy().copy()
-points = []
-for X, D in zip(df['conductivity_parameters'], df['diffusivity_parameters']):
-    points.append( concatenate([X,D]) )
+parameters = []
+for X, D, H in zip(df['conductivity_parameters'], df['diffusivity_parameters'], df['div_parameters']):
+    parameters.append(concatenate([X, D, H]))
 
 # convert the data to the normalised coordinates:
-points = [bounds_transform(p,optimisation_bounds) for p in points]
+normalised_parameters = [bounds_transform(p,optimisation_bounds) for p in parameters]
+
+# get the training points by extracting the parameters which are to be optimised
+# from the normalised parameter vectors:
+training_points = [v[varied_inds] for v in normalised_parameters]
 
 # if requested, normalise the training data to have zero mean
 if normalise_training_data:
@@ -66,7 +75,7 @@ if normalise_training_data:
     log_posterior -= data_mean
 
 # construct the GP
-GP = GpRegressor(points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
+GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
 
 # define a set of temperature levels
 N_levels = 6
@@ -105,7 +114,7 @@ print("""
 | DiffEv score: {}
 |   MCMC score: {}
 -------------------------
-""".format(de_score/len(points), mc_score/len(points))
+""".format(de_score/len(training_points), mc_score/len(training_points))
       )
 
 # get the LOO predictions
