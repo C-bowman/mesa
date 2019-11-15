@@ -56,16 +56,9 @@ set_divertor_transport = False
 #   gaussian-process regression settings
 # ----------------------------------------------------------------------------
 
-# Number of threads to be used when searching for the maximum
-# of the acquisition function
-threads = 4
-
 # specifies whether the training data is normalised to have zero mean
 # before modelling it using the Gaussian process
 normalise_training_data = True
-
-# specifies what criteria is used to select new proposed evaluations
-acquisition_function = 'max_prediction'
 
 # Boolean flag to set whether cross-validation should be used in place
 # of the marginal likelihood to select the GP hyper-parameters
@@ -91,15 +84,14 @@ initial_sample_count = 25
 # Maximum number of iterations after which the optimisation terminates
 max_iterations = 200
 
+# specifies what criteria is used to select new proposed evaluations
+acquisition_function = 'max_prediction'
+
 # Select whether or not a trust-region approach is used.
 trust_region = True
 
 # The width of the trust-region.
 trust_region_width = 0.08
-
-# The total time (in seconds) which will be used to search
-# for the maximum of the acquisition function
-search_time = 600
 
 # Lower & upper bounds placed on the values of the
 # profile model parameters
