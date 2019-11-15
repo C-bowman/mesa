@@ -1,5 +1,10 @@
 
 
+
+# ----------------------------------------------------------------------------
+#   directory settings
+# ----------------------------------------------------------------------------
+
 # directory where the SOLPS runs are stored
 solps_run_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/gpfit/'
 
@@ -19,6 +24,14 @@ diagnostic_data_file = ['TCV_TS_DATA_58196.mat','TCV_LP_DATA_58196','TCV_equil_5
 # description of the data stored in the data file
 diagnostic_data_desc = ['Midplane TS','Divertor LP','Equilibrium','Data Time','Grid Equilibrium','Grid Time','TS Z shift']
 
+
+
+
+
+# ----------------------------------------------------------------------------
+#   SOLPS settings
+# ----------------------------------------------------------------------------
+
 # number of SOLPS time steps per iteration
 solps_n_timesteps = 3000
 
@@ -31,12 +44,13 @@ solps_n_proc = 6
 # Number of optimiser iterations before cleaning the run directory
 solps_iter_reset = 5
 
-# Number of random-search evaluations which will be used to create an
-# initial set of training data for the GP-optimisation
-initial_sample_count = 25
 
-# Maximum number of iterations after which the optimisation terminates
-max_iterations = 200
+
+
+
+# ----------------------------------------------------------------------------
+#   gaussian-process regression settings
+# ----------------------------------------------------------------------------
 
 # Number of threads to be used when searching for the maximum
 # of the acquisition function
@@ -57,6 +71,21 @@ cross_validation = False
 # covariance_kernel variable so it can be passed to the GP.
 from inference.gp_tools import SquaredExponential
 covariance_kernel = SquaredExponential
+
+
+
+
+
+# ----------------------------------------------------------------------------
+#   optimiser settings
+# ----------------------------------------------------------------------------
+
+# Number of random-search evaluations which will be used to create an
+# initial set of training data for the GP-optimisation
+initial_sample_count = 25
+
+# Maximum number of iterations after which the optimisation terminates
+max_iterations = 200
 
 # Select whether or not a trust-region approach is used.
 trust_region = True
@@ -98,7 +127,6 @@ optimisation_bounds = [
     (0.1,50.0),   # radial ion heat diffusion
     (0.1,50.0),   # radial electron heat diffusion
 ]
-
 
 # The 'fixed_parameter_values' list allows a sub-set of the parameters to be fixed at
 # particular values, thereby removing them from the optimisation problem.
