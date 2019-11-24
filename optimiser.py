@@ -173,7 +173,7 @@ while True:
     new_parameters = bounds_transform(new_normalised_parameters, optimisation_bounds, inverse=True)
 
     # now insert the values of the fixed parameters
-    new_parameters[fixed_inds] = fixed_values
+    if len(fixed_inds) > 0: new_parameters[fixed_inds] = fixed_values
 
     # check to see if the grid-transformed new point is already in the evaluated set
     if grid_transform(bounds_transform(new_parameters, optimisation_bounds)) in grid_set:
