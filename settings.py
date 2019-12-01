@@ -17,12 +17,16 @@ solps_output_directory = '/pfs/work/g2hjame/solpsopt_runs/tcv_58196_1.2s/'
 # file name in which the training data will be stored
 training_data_file = 'training_data.h5'
 
-# file name in which the experimental data are stored
-diagnostic_data_file = ['TCV_TS_DATA_58196.mat','TCV_LP_DATA_58196','TCV_equil_58196.mat','1.2',
-                        'TCV_equil_58196.mat','1.2','-0.005']
+# file names in which the experimental data are stored
+diagnostic_data_files = ['TCV_TS_58196_1200ms_combined', 'TCV_LP_58196_1200ms']
 
-# description of the data stored in the data file
-diagnostic_data_desc = ['Midplane TS','Divertor LP','Equilibrium','Data Time','Grid Equilibrium','Grid Time','TS Z shift']
+# description of the data stored in the data file - ne, te, ne_weighted_te, ti, prad or jsat
+diagnostic_data_observables = [['ne', 'ne_weighted_te'],
+                               ['jsat']]
+
+# description of the error data stored in the data file - ene, ete, eti, eprad or ejsat
+diagnostic_data_observables = [['ene', 'ete'],
+                               ['ejsat']]
 
 
 
