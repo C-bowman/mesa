@@ -52,7 +52,8 @@ solps_iter_reset = 5
 # used for the PFR
 set_divertor_transport = False
 
-
+# Numbser of species in SOLPS simulations
+solps_n_species = 9
 
 
 
