@@ -7,6 +7,8 @@ from scipy.io import netcdf, loadmat
 from numpy import array, arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where, zeros
 from scipy.interpolate import interp1d, interp2d
 from copy import deepcopy
+import matplotlib.path as mplPath
+from pandas import read_hdf
 
 import matplotlib.pyplot as plt
 
@@ -386,6 +388,11 @@ def read_solps_data(filename = None):
     Reads data from SOLPS output files
     """
 
+    # Physical constants
+    el_ch = 1.602E-19
+    me = 9.109E-31
+    mi = 3.343E-27  # Deuterium mass!
+
     # load solps data
     f = netcdf.netcdf_file(filename,'r')
     crx = deepcopy(f.variables['crx'].data)
@@ -394,8 +401,8 @@ def read_solps_data(filename = None):
     solps_ne = deepcopy(f.variables['ne'].data)
     solps_na = deepcopy(f.variables['na'].data)
     solps_species = deepcopy(f.variables['species'].data)
-    solps_te = deepcopy(f.variables['te'].data)/1.602E-19
-    solps_ti = deepcopy(f.variables['ti'].data)/1.602E-19
+    solps_te = deepcopy(f.variables['te'].data)/el_ch
+    solps_ti = deepcopy(f.variables['ti'].data)/el_ch
     solps_vi = deepcopy(f.variables['ua'].data)
     solps_dab2 = deepcopy(f.variables['dab2'].data[:,:,0:-2])   # Atomic density
     solps_dmb2 = deepcopy(f.variables['dmb2'].data[:,:,0:-2])   # Molecular density
@@ -404,7 +411,10 @@ def read_solps_data(filename = None):
     b2_ploss = deepcopy(f.variables['b2stel_she_bal'].data)
 
     # Estimate the total radiated power emissivity
-    prad = b2_ploss/vol+(eirene_eloss-13.6*eirene_sion*1.602E-19)/vol
+    prad = b2_ploss/vol+(eirene_eloss-13.6*eirene_sion*el_ch)/vol
+
+    # Estimate the ion saturation current density
+    jsat = el_ch*solps_ne*sqrt(el_ch*(solps_te+solps_ti)/(me+mi))
 
     # Estimate the positions of the the separatrix and outer mid-plane
     sep = deepcopy(f.variables['jsep'].data)+2 # Separatrix ring
@@ -432,6 +442,7 @@ def read_solps_data(filename = None):
     output['nmol']     = solps_dmb2
     output['sion']     = eirene_sion
     output['prad']     = prad
+    output['jsat']     = jsat
     output['sep_indx'] = sep
     output['omp_indx'] = omp
     output['cen_x']    = solps_cen_x
@@ -439,13 +450,45 @@ def read_solps_data(filename = None):
     
     return output
 
-def read_expt_data(diagnostic_data_file = None, diagnostic_data_desc = None):
+def calc_point_geo_matrix(samples_r,samples_z,samples_n,cells):
+    '''
+    Calculates a geometry matrix for pointwise measurements.  Each measurement
+    is assumed to comprise of a point cloud of coordinates (r,z).  The position
+    of each coordinate within each modelling mesh cell is calculated and returned
+    in the geometry matrix
 
-    # Read varios data files here...
-    print('hello')
+    Inputs:
+        - samples_r: radial coordinates
+        - samples_z: vertical coordinates
+        - samples_n: measurement index {0, ..., number_of_measurements}
+        - cells: matplotlib PathCollection containing the modelling grid cells
+    '''
 
-def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_file = None,
-                           diagnostic_data_desc = None):
+    geomat = zeros((int(samples_n.max())+1,len(cells)))
+    pts = vstack((samples_r,samples_z)).transpose()
+
+    for i in arange(len(cells)):
+        tmp1 = cells[i].contains_points(pts)
+        if tmp1.sum() > 0:
+            # Found some Thomson scattering points within grid cells
+            tmp2 = unique(tmp1*samples_n,return_counts=True)
+
+            for j in arange(len(tmp2[0])):
+                if tmp2[0][j] > 0:
+                    geomat[int(tmp2[0][j]),i] += tmp2[1][j]
+
+    # Normalise the geometry matrix by the number of samples
+    n_samples = unique(samples_n, return_counts=True)
+
+    for i in arange(int(samples_n.max())+1):
+        geomat[i,:] /= n_samples[1][i]
+
+    return geomat
+
+
+
+def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,
+                           diagnostic_data_observables = None, diagnostic_data_errors = None):
     """
     :param int iteration: \
         iteration number of the solps run for which the posterior log-probability is calculated.
@@ -465,126 +508,128 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
 
     # read the SOLPS data
     solps_data = read_solps_data(solps_path)
-    
-    # read the data from experiments
-    indx = diagnostic_data_desc.index('Data Time')
-    data_time = float(diagnostic_data_file[indx])
 
-    # Load the Thomson scattering data
-    indx = diagnostic_data_desc.index('Midplane TS')
-    ts_data = loadmat(directory+diagnostic_data_file[indx])
+    # Create an array of SOLPS cells
+    cells = []
+    solps_ne_cell = []
+    solps_te_cell = []
+    solps_ti_cell = []
+    solps_jsat_cell = []
+    solps_prad_cell = []
 
-    ts_r_shift = 0.0
-    ts_z_shift = 0.0
-    
-    if 'TS R shift' in diagnostic_data_desc:
-        indx = diagnostic_data_desc.index('TS R shift')
-        ts_r_shift = float(diagnostic_data_file[indx])
+    for i in arange(crx.shape[1]):
+        for j in arange(crx.shape[2]):
+            cells.append(mplPath.Path([[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]],[solps_data['vertex_x'][1,i,j],solps_data['vertex_y'][1,i,j]],[solps_data['vertex_x'][0,i,j],solps_data['vertex_y'][0,i,j]],[solps_data['vertex_x'][2,i,j],solps_data['vertex_y'][2,i,j]],[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]]]))
+            solps_ne_cell.append(solps_data['ne'][i,j])
+            solps_te_cell.append(solps_data['te'][i,j])
+            solps_ti_cell.append(solps_data['ti'][i,j])
+            solps_jsat_cell.append(solps_data['jsat'][i,j])
+            solps_prad_cell.append(solps_data['prad'][i,j])
 
-    if 'TS Z shift' in diagnostic_data_desc:
-        indx = diagnostic_data_desc.index('TS Z shift')
-        ts_z_shift = float(diagnostic_data_file[indx])
+    solps_ne_cell = array(solps_ne_cell)
+    solps_te_cell = array(solps_te_cell)
+    solps_ti_cell = array(solps_ti_cell)
+    solps_jsat_cell = array(solps_jsat_cell)
+    solps_prad_cell = array(solps_prad_cell)
 
-    ts_t    = squeeze(ts_data['ts'][0][0][12])
-    ts_ne   = ts_data['ts'][0][0][4]
-    ts_te   = ts_data['ts'][0][0][2]
-    ts_ene  = ts_data['ts'][0][0][5]
-    ts_ete  = ts_data['ts'][0][0][3]
-    ts_r    = squeeze(ts_data['ts'][0][0][8])+ts_r_shift
-    ts_z    = squeeze(ts_data['ts'][0][0][9])+ts_z_shift
-    ts_rho  = ts_data['ts'][0][0][10]
-    ts_psi  = ts_data['ts'][0][0][11]
-    
-    ts_tindx = argmin(abs(data_time-ts_t))
+    # Initialise the log probabilities
+    electron_density_log_probability = 0.0
+    electron_temperature_log_probability = 0.0
+    ion_temperature_log_probability = 0.0
+    jsat_log_probability = 0.0
+    prad_log_probability = 0.0
 
-    # Read the equilibrium of the SOLPS grid
-    indx = diagnostic_data_desc.index('Grid Equilibrium')
-    geq = loadmat(directory+diagnostic_data_file[indx])
-    indx = diagnostic_data_desc.index('Grid Time')
-    grid_time = float(diagnostic_data_file[indx])
+    # Read the experimental data
+    for i in arange(len(diagnostic_data_files)):
 
-    gpsi_r = squeeze(geq['equil']['R'][0][0])
-    gpsi_z = squeeze(geq['equil']['Z'][0][0])
-    gpsi_t = squeeze(geq['equil']['time'][0][0])
-    gpsi_n = squeeze(geq['equil']['psi_n'][0][0])
-    gpsi_raxis = squeeze(geq['equil']['r_axis'][0][0])
-    gpsi_zaxis = squeeze(geq['equil']['z_axis'][0][0])
-    gpsi_tindx = argmin(abs(gpsi_t-grid_time))
+        data = read_hdf(diagnostic_data_files[i],'data',mode='r')
+        data_validindx = isfinite(data['r'])
 
-    gpsin = gpsi_n[:,:,gpsi_tindx]
-    gpsin_intrp = interp2d(gpsi_r,gpsi_z,gpsin.transpose())
+        # Read the geometry information
+        data_r = data['r'].values[data_validindx]
+        data_z = data['z'].values[data_validindx]
+        sample_r = data['sample_r'].values
+        sample_z = data['sample_z'].values
+        sample_n = data['sample_n'].values
+        data_type = data['measurement_type'].values[0]
 
-    solps_grid_psin = solps_data['cen_x']*0.0
-    for i in arange(shape(solps_data['cen_x'])[0]):
-        for j in arange(shape(solps_data['cen_x'])[1]):
-            solps_grid_psin[i,j] = gpsin_intrp(solps_data['cen_x'][i,j],solps_data['cen_y'][i,j])
+        # Check if a geometry matrix has been calculated
 
-    # Read the equilibrium of the data
-    indx = diagnostic_data_desc.index('Equilibrium')
-    eq = loadmat(directory+diagnostic_data_file[indx])
+        # If not, calculate the geometry matrix
+        if data_type == 'point':
+            geomat = calc_point_geo_matrix(sample_r,sample_z,sample_n,cells)
 
-    psi_r = squeeze(eq['equil']['R'][0][0])
-    psi_z = squeeze(eq['equil']['Z'][0][0])
-    psi_t = squeeze(eq['equil']['time'][0][0])
-    psi_n = squeeze(eq['equil']['psi_n'][0][0])
-    psi_tindx = argmin(abs(psi_t-data_time))
+        if data_type == 'line':
+            raise Exception('Measurement type not yet supported.')
 
-    psin = psi_n[:,:,psi_tindx]
-    psin_intrp = interp2d(psi_r,psi_z,psin.transpose())
+        for j in arange(len(diagnostic_data_observables[i])):
+            if diagnostic_data_observables[i][j] == 'ne':
+                solps_projected = geomat.dot(solps_ne_cell)
 
-    # Interpolate the equilibrium normalised flux to the Thomson scattering points
-    solps_ts_psin = ts_r*0.0
-    for i in arange(len(ts_r)):
-        solps_ts_psin[i] = gpsin_intrp(ts_r[i],ts_z[i])
+            if diagnostic_data_observables[i][j] == 'te':
+                solps_projected = geomat.dot(solps_te_cell)
 
-    # Interpolate the normalised flux from the shot the data was recorded
-    data_ts_psin = ts_ne[ts_tindx,:]*0.0
-    for i in arange(len(data_ts_psin)):
-        data_ts_psin[i] = psin_intrp(ts_r[i],ts_z[i])
+            if diagnostic_data_observables[i][j] == 'ne_weighted_te':
+                solps_projected = geomat.dot(solps_te_cell*solps_ne_cell)/geomat.dot(solps_ne_cell)
 
-    # HACK!! Only take the lower half of the profile
-    ts_zindx = where(ts_z < 0.0)[0]
+            if diagnostic_data_observables[i][j] == 'ti':
+                solps_projected = geomat.dot(solps_ti_cell)
 
-    # Collect together the arrays needed to calculate chi square
-    thomson_psin = squeeze(data_ts_psin[ts_zindx])
-    thomson_ne   = squeeze(ts_ne[ts_tindx,ts_zindx])
-    thomson_ene  = squeeze(ts_ene[ts_tindx,ts_zindx])
-    thomson_te   = squeeze(ts_te[ts_tindx,ts_zindx])
-    thomson_ete  = squeeze(ts_ete[ts_tindx,ts_zindx])
+            if diagnostic_data_observables[i][j] == 'jsat':
+                solps_projected = geomat.dot(solps_jsat_cell)
 
-    omp = solps_data['omp_indx']
+            if diagnostic_data_observables[i][j] == 'prad':
+                solps_projected = geomat.dot(solps_prad_cell)
 
-    solps_psin_mp_profile = squeeze(solps_grid_psin[:,omp])
-    solps_ne_mp_profile   = squeeze(solps_data['ne'][:,omp])
-    solps_te_mp_profile   = squeeze(solps_data['te'][:,omp])
+            # Filter the projected data so that only measurements made within the SOLPS grid
+            # are retained
+            geo_validindx = where(sum(geomat,axis=1) > 0.99)[0]
 
-    # Calculate log-probability for the Thomson data
-    interpne = interp1d(solps_psin_mp_profile,solps_ne_mp_profile)
-    mp_density_logprob = 0.0
-    for i in arange(len(thomson_ne)):
-        if thomson_psin[i] > min(solps_psin_mp_profile) and isfinite(thomson_ne[i]):
-            mp_density_logprob = mp_density_logprob+(thomson_ne[i]-interpne(thomson_psin[i]))**2/thomson_ene[i]**2
-    mp_density_logprob *= -0.5
+            expt_data = data[diagnostic_data_observables[i][j]].values[data_validindx][geo_validindx]
+            expt_err = data[diagnostic_data_errors[i][j]].values[data_validindx][geo_validindx]
+            solps_projected = solps_projected[geo_validindx]
 
-    interpte = interp1d(solps_psin_mp_profile,solps_te_mp_profile)
-    mp_e_temperature_logprob = 0.0
-    for i in arange(len(thomson_te)):
-        if thomson_psin[i] > min(solps_psin_mp_profile) and isfinite(thomson_te[i]):
-            mp_e_temperature_logprob = mp_e_temperature_logprob+(thomson_te[i]-interpte(thomson_psin[i]))**2/thomson_ete[i]**2
-    mp_e_temperature_logprob *= -0.5
+            # Calculate the log probability for the observable    
+            if diagnostic_data_observables[i][j] == 'ne':
+                for k in arange(len(expt_data)):
+                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
+                            electron_density_log_probability = electron_density_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
 
-    #plt.figure()
-    #plt.errorbar(thomson_psin,thomson_te,thomson_ete,fmt='.b')
-    #plt.hold(True)
-    #plt.plot(solps_psin_mp_profile,solps_te_mp_profile,'.r')
-    #plt.hold(False)
-    #plt.show()
+            if diagnostic_data_observables[i][j] == 'te' or diagnostic_data_observables[i][j] == 'ne_weighted_te':
+                for k in arange(len(expt_data)):
+                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
+                            electron_temperature_log_probability = electron_temperature_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
 
-    print(['Midplane ne profile chi square ', mp_density_logprob])
-    print(['Midplane Te profile chi square' , mp_e_temperature_logprob])
+            if diagnostic_data_observables[i][j] == 'ti':
+                for k in arange(len(expt_data)):
+                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
+                            ion_temperature_log_probability = ion_temperature_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
+
+            if diagnostic_data_observables[i][j] == 'jsat':
+                for k in arange(len(expt_data)):
+                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
+                            jsat_log_probability = jsat_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
+
+            if diagnostic_data_observables[i][j] == 'prad':
+                raise Exception('Measurement type not yet supported')
+
+    # Multiply the overall log probabilities by -0.5
+    electron_density_log_probability *= -0.5
+    electron_temperature_log_probability *= -0.5
+    ion_temperature_log_probability *= -0.5
+    jsat_log_probability *= -0.5
+    prad_log_probability *= -0.5
+
+    print(['Electron density log probability ', electron_density_log_probability])
+    print(['Electron temperature log probability ', electron_temperature_log_probability])
+    print(['Ion temperature log probability ', ion_temperature_log_probability])
+    print(['Ion saturation current log probability ', jsat_log_probability])
+    print(['Radiated power log probability ', prad_log_probability])
 
     # calculate the log-posterior probability
-    log_posterior = mp_density_logprob + mp_e_temperature_logprob
+    log_posterior = electron_density_log_probability + electron_temperature_log_probability + ion_temperature_log_probability + jsat_log_probability + prad_log_probability
+
+    print(['Overall log probability ', log_posterior])
 
     return log_posterior # return the log-posterior
 

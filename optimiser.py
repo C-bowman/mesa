@@ -33,9 +33,10 @@ else:
 
 # check that the settings module contains all the required information
 keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
-        'diagnostic_data_file', 'diagnostic_data_desc', 'initial_sample_count','solps_n_timesteps','solps_dt',
-        'acquisition_function', 'normalise_training_data', 'cross_validation', 'covariance_kernel',
-        'trust_region', 'trust_region_width', 'fixed_parameter_values', 'set_divertor_transport']
+        'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
+        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function', 'normalise_training_data', 
+        'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
+        'set_divertor_transport']
 
 for key in keys:
     if key not in settings:
@@ -46,8 +47,9 @@ run_directory = settings['solps_run_directory']
 ref_directory = settings['solps_ref_directory']
 output_directory = settings['solps_output_directory']
 training_data_file = settings['training_data_file']
-diagnostic_data_file = settings['diagnostic_data_file']
-diagnostic_data_desc = settings['diagnostic_data_desc']
+diagnostic_data_files = settings['diagnostic_data_files']
+diagnostic_data_observables = settings['diagnostic_data_observables']
+diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_species = settings['solps_n_species']
@@ -210,9 +212,10 @@ while True:
                        n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     # evaluate the chi-squared
-    new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_file = diagnostic_data_file,
-                                           diagnostic_data_desc = diagnostic_data_desc)
+    log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                           diagnostic_data_files = diagnostic_data_files,
+                                           diagnostic_data_observables = diagnostic_data_observables,
+                                           diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict = {

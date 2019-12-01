@@ -26,8 +26,12 @@ else:
     raise ValueError('{} is not a valid path to a settings module'.format(argv[1]))
 
 # check that the settings module contains all the required information
-keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file', 'diagnostic_data_file',
-        'initial_sample_count','solps_n_timesteps','solps_dt', 'fixed_parameter_values']
+keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
+        'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
+        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function', 'normalise_training_data', 
+        'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
+        'set_divertor_transport']
+	
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
@@ -37,8 +41,9 @@ run_directory = settings['solps_run_directory']
 output_directory = settings['solps_output_directory']
 ref_directory = settings['solps_ref_directory']
 training_data_file = settings['training_data_file']
-diagnostic_data_file = settings['diagnostic_data_file']
-diagnostic_data_desc = settings['diagnostic_data_desc']
+diagnostic_data_files = settings['diagnostic_data_files']
+diagnostic_data_observables = settings['diagnostic_data_observables']
+diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_timesteps = settings['solps_n_timesteps']
@@ -120,8 +125,9 @@ while True:
 
     # evaluate the chi-squared
     log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_file = diagnostic_data_file,
-                                           diagnostic_data_desc = diagnostic_data_desc)
+                                           diagnostic_data_files = diagnostic_data_files,
+                                           diagnostic_data_observables = diagnostic_data_observables,
+                                           diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict = {
