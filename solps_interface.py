@@ -4,7 +4,7 @@ from time import sleep, time
 import subprocess
 import filecmp
 from scipy.io import netcdf, loadmat
-from numpy import array, arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where, zeros
+from numpy import array, arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where, zeros, sqrt, vstack, unique
 from scipy.interpolate import interp1d, interp2d
 from copy import deepcopy
 import matplotlib.path as mplPath
@@ -517,8 +517,8 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     solps_jsat_cell = []
     solps_prad_cell = []
 
-    for i in arange(crx.shape[1]):
-        for j in arange(crx.shape[2]):
+    for i in arange(solps_data['vertex_x'].shape[1]):
+        for j in arange(solps_data['vertex_x'].shape[2]):
             cells.append(mplPath.Path([[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]],[solps_data['vertex_x'][1,i,j],solps_data['vertex_y'][1,i,j]],[solps_data['vertex_x'][0,i,j],solps_data['vertex_y'][0,i,j]],[solps_data['vertex_x'][2,i,j],solps_data['vertex_y'][2,i,j]],[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]]]))
             solps_ne_cell.append(solps_data['ne'][i,j])
             solps_te_cell.append(solps_data['te'][i,j])
@@ -542,7 +542,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     # Read the experimental data
     for i in arange(len(diagnostic_data_files)):
 
-        data = read_hdf(diagnostic_data_files[i],'data',mode='r')
+        data = read_hdf(directory+diagnostic_data_files[i]+'.h5','data',mode='r')
         data_validindx = isfinite(data['r'])
 
         # Read the geometry information
