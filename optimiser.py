@@ -212,10 +212,10 @@ while True:
                        n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     # evaluate the chi-squared
-    log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_files = diagnostic_data_files,
-                                           diagnostic_data_observables = diagnostic_data_observables,
-                                           diagnostic_data_errors = diagnostic_data_errors)
+    new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                               diagnostic_data_files = diagnostic_data_files,
+                                               diagnostic_data_observables = diagnostic_data_observables,
+                                               diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict = {
