@@ -22,6 +22,29 @@ def grid_transform(point):
     tree = BinaryTree(limits = (0.,1.), layers = 6)
     return tuple([tree.lookup(v)[2] for v in point])
 
+def check_dependencies(settings):
+    '''
+    Checks that the files required to run the optimiser are present.
+    If a file is missing, an exception is raised.
+    '''
+
+    output_directory = settings['solps_output_directory']
+    training_data_file = settings['training_data_file']
+    diagnostic_data_files = settings['diagnostic_data_files']
+
+    # Check if diagnostic data is present
+    for df in diagnostic_data_files:
+        if not isfile(output_directory+df+'.h5'):
+            raise Exception('File not found: '+output_directory+df+'.h5')
+
+    # Check if training data is present
+    if not isfile(output_directory+training_data_file):
+        raise Exception('File not found: '+output_directory+training_data_file)
+
+
+
+
+
 # Get data from the settings module
 if len(argv) == 1: # check to see if the settings module path was given
     raise ValueError('Path to settings module was not given as an argument')
@@ -41,6 +64,9 @@ keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
+
+# Check other data files are present
+check_dependencies(settings)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']
@@ -212,10 +238,10 @@ while True:
                        n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     # evaluate the chi-squared
-    log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_files = diagnostic_data_files,
-                                           diagnostic_data_observables = diagnostic_data_observables,
-                                           diagnostic_data_errors = diagnostic_data_errors)
+    new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                               diagnostic_data_files = diagnostic_data_files,
+                                               diagnostic_data_observables = diagnostic_data_observables,
+                                               diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict = {

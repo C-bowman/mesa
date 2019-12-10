@@ -13,6 +13,20 @@ from solps_interface import run_solps, evaluate_log_posterior, reset_solps
 def hypercube_sample(bounds):
     return [ b[0] + (b[1]-b[0])*random() for b in bounds ]
 
+def check_dependencies(settings):
+    '''
+    Checks that the files required to run the optimiser are present.
+    If a file is missing, an exception is raised.
+    '''
+
+    output_directory = settings['solps_output_directory']
+    diagnostic_data_files = settings['diagnostic_data_files']
+
+    # Check if diagnostic data is present
+    for df in diagnostic_data_files:
+        if not isfile(output_directory+df+'.h5'):
+            raise Exception('File not found: '+output_directory+df+'.h5')
+
 
 
 # Get data from the settings module
@@ -35,6 +49,9 @@ keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
+
+# Check other data files are present
+check_dependencies(settings)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']
