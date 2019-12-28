@@ -359,6 +359,18 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     copyoutputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
     copyoutputfiles.communicate()
 
+    # zip up the SOLPS input files
+    input_files = 'b2mn.dat b2ah.dat input.dat b2.transport.parameters b2.boundary.parameters b2.neutrals.parameters b2.transport.inputfile'
+
+    zipinputfiles = subprocess.Popen('zip input_files.zip '+input_files,stdout=subprocess.PIPE,shell=True)
+    zipinputfiles.communicate()
+
+    # Then copy the SOLPS input files to the solps_output directory
+    output_path = run_directory + 'input_files.zip'
+    new_output_path = output_directory + 'solps_input_files_{}.zip'.format(iteration)
+    copyinputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
+    copyinputfiles.communicate()
+
     chdir(orig_dir)
 
 def reset_solps(run_directory, ref_directory):
