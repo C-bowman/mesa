@@ -50,11 +50,13 @@ solps_iter_reset = 5
 
 # Sets whether the divertor transport coefficients are overridden by those
 # used for the PFR
-set_divertor_transport = False
+set_divertor_transport = True
 
 # Number of species in SOLPS simulations
 solps_n_species = 9
 
+# Number of hours to leave SOLPS running before timing out
+timeout_hours = 5
 
 
 # ----------------------------------------------------------------------------

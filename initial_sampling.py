@@ -44,7 +44,7 @@ keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 
         'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
         'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function', 'normalise_training_data', 
         'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
-        'set_divertor_transport']
+        'set_divertor_transport','solps_timeout_hours']
 	
 for key in keys:
     if key not in settings:
@@ -68,6 +68,7 @@ solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
 solps_iter_reset = settings['solps_iter_reset']
 solps_n_species = settings['solps_n_species']
+solps_timeout_hours = settings['solps_timeout_hours']
 set_divertor_transport = settings['set_divertor_transport']
 
 # optimiser settings
@@ -119,7 +120,7 @@ while True:
     if i > initial_sample_count: break
 
     # sample new evaluation point
-    new_parameters = hypercube_sample(optimisation_bounds)
+    new_parameters = array(hypercube_sample(optimisation_bounds))
 
     # if any of the parameters have been fixed, then insert those values
     if len(fixed_values) > 0:
@@ -137,7 +138,7 @@ while True:
     # Run SOLPS for the new point
     run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce, 
                        run_directory = run_directory, output_directory = output_directory, 
-                       solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
+                       solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt, timeout_hours = solps_timeout_hours,
                        n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     # evaluate the chi-squared

@@ -1,5 +1,6 @@
 
 from os import getcwd, chdir
+from os.path import exists
 from time import sleep, time
 import subprocess
 import filecmp
@@ -342,7 +343,9 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
             print('[solps_interface] Job '+jobstr+' is in progress...')
 
         if time() > timeout: # check to see if we've timed out
-            raise TimeoutError('No SOLPS output file was detected within the time-out limit')
+            #raise TimeoutError('No SOLPS output file was detected within the time-out limit')
+            print('[solps_interface] No SOLPS output file was detected within the time-out limit')
+            cancel_solps(jobstr)
 
         sleep(30) # wait for 30 seconds between checks
 
@@ -355,23 +358,33 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     output_path = run_directory + 'balance.nc'
     new_output_path = output_directory + 'solps_run_{}.nc'.format(iteration)
 
-    # copy the SOLPS output to the solps_output_directory
-    copyoutputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
-    copyoutputfiles.communicate()
+    if exists(output_path):
+        print('[solps_interface] SOLPS run completed successfully.')
+        # copy the SOLPS output to the solps_output_directory
+        copyoutputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
+        copyoutputfiles.communicate()
 
-    # zip up the SOLPS input files
-    input_files = 'b2mn.dat b2ah.dat input.dat b2.transport.parameters b2.boundary.parameters b2.neutrals.parameters b2.transport.inputfile'
+        # zip up the SOLPS input files
+        input_files = 'b2mn.dat b2ah.dat input.dat b2.transport.parameters b2.boundary.parameters b2.neutrals.parameters b2.transport.inputfile'
 
-    zipinputfiles = subprocess.Popen('zip input_files.zip '+input_files,stdout=subprocess.PIPE,shell=True)
-    zipinputfiles.communicate()
+        zipinputfiles = subprocess.Popen('zip input_files.zip '+input_files,stdout=subprocess.PIPE,shell=True)
+        zipinputfiles.communicate()
 
-    # Then copy the SOLPS input files to the solps_output directory
-    output_path = run_directory + 'input_files.zip'
-    new_output_path = output_directory + 'solps_input_files_{}.zip'.format(iteration)
-    copyinputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
-    copyinputfiles.communicate()
+        # Then copy the SOLPS input files to the solps_output directory
+        output_path = run_directory + 'input_files.zip'
+        new_output_path = output_directory + 'solps_input_files_{}.zip'.format(iteration)
+        copyinputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
+        copyinputfiles.communicate()
 
-    chdir(orig_dir)
+        chdir(orig_dir)
+
+        return True
+    else:
+        print('[solps_interface] SOLPS run failed.')
+
+        chdir(orig_dir)
+
+        return False
 
 def reset_solps(run_directory, ref_directory):
     """
@@ -394,6 +407,16 @@ def reset_solps(run_directory, ref_directory):
     jobqueue = test.communicate()[0]
     
     chdir(orig_dir)
+
+def cancel_solps(jobstr):
+    """
+    Cancels a SOLPS run in case of a timeout or other error.  An output file is not written
+    by SOLPS, so solps_interface knows the code ended with an error
+    """
+
+    test = subprocess.Popen('scancel '+jobstr,stdout=subprocess.PIPE,shell=True)
+    comm = test.communicate()[0]
+
 
 def read_solps_data(filename = None):
     """
