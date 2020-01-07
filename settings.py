@@ -85,7 +85,8 @@ initial_sample_count = 25
 max_iterations = 200
 
 # specifies what criteria is used to select new proposed evaluations
-acquisition_function = 'max_prediction'
+from inference.gp_tools import UpperConfidenceBound
+acquisition_function = UpperConfidenceBound(kappa=1.)
 
 # Select whether or not a trust-region approach is used.
 trust_region = True

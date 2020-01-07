@@ -9,7 +9,6 @@ from sys import argv
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
 from inference.gp_tools import GpOptimiser, GpRegressor
-from inference.mcmc import GibbsChain, ParallelTempering
 from inference.pdf_tools import BinaryTree
 
 def bounds_transform(v, bounds, inverse=False):
@@ -109,36 +108,13 @@ while True:
 
     # construct the GP
     GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
+    bfgs_hps = GP.multistart_bfgs(starts=50)
 
-    # define a set of temperature levels
-    N_levels = 4
-    temps = [10**(2.5*k/(N_levels-1.)) for k in range(N_levels)]
-
-    # create a set of chains - one with each temperature
-    chains = [ GibbsChain(posterior=GP.model_selector, start = GP.hyperpars, temperature=T) for T in temps ]
-    hyperpar_bounds = GP.cov.get_bounds()
-    for chain in chains:
-        for i,b in enumerate(hyperpar_bounds): chain.set_boundaries(i, b)
-
-    # When an instance of ParallelTempering is created, a dedicated process for each chain is spawned.
-    # These separate processes will automatically make use of the available cpu cores, such that the
-    # computations to advance the separate chains are performed in parallel.
-    PT = ParallelTempering(chains=chains)
-
-    PT.run_for(minutes=2)
-
-    chains = PT.return_chains() # have all processes return their chain objects
-    PT.shutdown() # shutdown the processes
-
-    # extract the hyper-parameter estimate
-    mode = chains[0].mode()
-
-    # if MCMC found a better solution then use it
-    de_score = GP.model_selector(GP.hyperpars)
-    mc_score = GP.model_selector(mode)
-
-    if mc_score < de_score:
+    if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
+        mode = bfgs_hps
+    else:
         mode = GP.hyperpars
+
 
     # If a trust-region approach is being used, limit the search area
     # to a region around the current maximum
@@ -150,19 +126,27 @@ while True:
     else:
         search_bounds = [(0.,1.) for i in range(len(varied_inds))]
 
+
     # build the GP-optimiser
-    GPopt = GpOptimiser(training_points, log_posterior, hyperpars = mode, bounds=search_bounds,
-                        cross_val = cross_validation, kernel = covariance_kernel)
+    GPopt = GpOptimiser(training_points, log_posterior, hyperpars = GP.hyperpars, bounds=search_bounds,
+                        cross_val = cross_validation, kernel = covariance_kernel, acquisition=acquisition_function)
 
-    # get the new evaluation point by maximising the acquisition function
-    if acquisition_function is 'expected_improvement':
-        new_point, max_EI = GPopt.maximise_acquisition(GPopt.expected_improvement)
-        convergence = abs(max_EI / GPopt.mu_max)
-    elif acquisition_function is 'max_prediction':
-        new_point, max_pred = GPopt.maximise_acquisition(GPopt.max_prediction)
-        convergence = -1. - max_pred/GPopt.mu_max
+    # maximise the acquisition both by multi-start bfgs and differential evolution, and use the best of the two
+    bfgs_prop = GPopt.propose_evaluation(bfgs=True)
+    diff_prop = GPopt.propose_evaluation()
 
-    # get predicted chi-squared at the new point
+    bfgs_acq = GPopt.acquisition(bfgs_prop)
+    diff_acq = GPopt.acquisition(diff_prop)
+
+    if bfgs_acq > diff_acq:
+        new_point = bfgs_prop
+    else:
+        new_point = diff_prop
+
+    # calculate the convergence metric
+    convergence = GPopt.acquisition.convergence_metric(new_point)
+
+    # get predicted log-probability at the new point
     mu_lp, sigma_lp = GPopt.gp(new_point)
 
     # convert the new point to a new parameter vector
