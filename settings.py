@@ -56,9 +56,6 @@ set_divertor_transport = True
 solps_n_species = 9
 
 # Number of hours to leave SOLPS running before timing out
-timeout_hours = 5
-
-# Number of hours to leave SOLPS running before timing out
 solps_timeout_hours = 5
 
 # ----------------------------------------------------------------------------
