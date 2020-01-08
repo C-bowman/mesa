@@ -141,9 +141,9 @@ while True:
                            n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     if run_status == False:
-        print('[optimiser] Restoring SOLPS run directory from reference.')
+        print('[initial_sampling] Restoring SOLPS run directory from reference.')
         reset_solps(run_directory,ref_directory)
-        print('[optimiser] Restoration complete, trying new run...')
+        print('[initial_sampling] Restoration complete, trying new run...')
         continue
 
     # evaluate the chi-squared
