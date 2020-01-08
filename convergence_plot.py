@@ -17,7 +17,7 @@ else:
     raise ValueError('{} is not a valid path to a settings module'.format(argv[1]))
 
 # check that the settings module contains all the required information
-keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'diagnostic_data_file', 'max_iterations']
+keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'max_iterations']
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
@@ -26,7 +26,6 @@ for key in keys:
 output_directory = settings['solps_output_directory']
 optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
-diagnostic_data_file = settings['diagnostic_data_file']
 max_iterations = settings['max_iterations']
 
 

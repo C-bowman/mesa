@@ -21,6 +21,29 @@ def grid_transform(point):
     tree = BinaryTree(limits = (0.,1.), layers = 6)
     return tuple([tree.lookup(v)[2] for v in point])
 
+def check_dependencies(settings):
+    '''
+    Checks that the files required to run the optimiser are present.
+    If a file is missing, an exception is raised.
+    '''
+
+    output_directory = settings['solps_output_directory']
+    training_data_file = settings['training_data_file']
+    diagnostic_data_files = settings['diagnostic_data_files']
+
+    # Check if diagnostic data is present
+    for df in diagnostic_data_files:
+        if not isfile(output_directory+df+'.h5'):
+            raise Exception('File not found: '+output_directory+df+'.h5')
+
+    # Check if training data is present
+    if not isfile(output_directory+training_data_file):
+        raise Exception('File not found: '+output_directory+training_data_file)
+
+
+
+
+
 # Get data from the settings module
 if len(argv) == 1: # check to see if the settings module path was given
     raise ValueError('Path to settings module was not given as an argument')
@@ -32,21 +55,26 @@ else:
 
 # check that the settings module contains all the required information
 keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
-        'diagnostic_data_file', 'diagnostic_data_desc', 'initial_sample_count','solps_n_timesteps','solps_dt',
-        'acquisition_function', 'normalise_training_data', 'cross_validation', 'covariance_kernel',
-        'trust_region', 'trust_region_width', 'fixed_parameter_values', 'set_divertor_transport']
+        'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
+        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function', 'normalise_training_data', 
+        'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
+        'set_divertor_transport','solps_timeout_hours']
 
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
+
+# Check other data files are present
+check_dependencies(settings)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']
 ref_directory = settings['solps_ref_directory']
 output_directory = settings['solps_output_directory']
 training_data_file = settings['training_data_file']
-diagnostic_data_file = settings['diagnostic_data_file']
-diagnostic_data_desc = settings['diagnostic_data_desc']
+diagnostic_data_files = settings['diagnostic_data_files']
+diagnostic_data_observables = settings['diagnostic_data_observables']
+diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_species = settings['solps_n_species']
@@ -55,6 +83,7 @@ solps_dt = settings['solps_dt']
 solps_n_proc = settings['solps_n_proc']
 solps_iter_reset = settings['solps_iter_reset']
 set_divertor_transport = settings['set_divertor_transport']
+solps_timeout_hours = settings['solps_timeout_hours']
 
 # optimiser settings
 max_iterations = settings['max_iterations']
@@ -181,29 +210,35 @@ while True:
     chi = linear_transport_profile(radius, new_parameters[0:9])
     D = linear_transport_profile(radius, new_parameters[9:18])
     dna = new_parameters[18]
-    hci = new_parameters[19]
-    hce = new_parameters[20]
+    hc = new_parameters[19]
 
     # get the current iteration number
     i = df['iteration'].max()+1
 
     # Run SOLPS for the new point
-    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce,
-                       run_directory = run_directory, output_directory = output_directory,
-                       solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt,
-                       n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
+    run_status = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc,
+                           run_directory = run_directory, output_directory = output_directory,
+                           solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt, timeout_hours = solps_timeout_hours,
+                           n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
+
+    if run_status == False:
+        print('[optimiser] Restoring SOLPS run directory from reference.')
+        reset_solps(run_directory,ref_directory)
+        print('[optimiser] Restoration complete, trying new run...')
+        continue
 
     # evaluate the chi-squared
     new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_file = diagnostic_data_file,
-                                           diagnostic_data_desc = diagnostic_data_desc)
+                                               diagnostic_data_files = diagnostic_data_files,
+                                               diagnostic_data_observables = diagnostic_data_observables,
+                                               diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict = {
         'iteration' : i,
         'conductivity_parameters' : new_parameters[0:9],
         'diffusivity_parameters' : new_parameters[9:18],
-        'div_parameters' : new_parameters[18:21],
+        'div_parameters' : new_parameters[18:20],
         'log_posterior' : new_log_posterior,
         'prediction_mean' : mu_lp,
         'prediction_error' : sigma_lp,

@@ -17,12 +17,16 @@ solps_output_directory = '/pfs/work/g2hjame/solpsopt_runs/tcv_58196_1.2s/'
 # file name in which the training data will be stored
 training_data_file = 'training_data.h5'
 
-# file name in which the experimental data are stored
-diagnostic_data_file = ['TCV_TS_DATA_58196.mat','TCV_LP_DATA_58196','TCV_equil_58196.mat','1.2',
-                        'TCV_equil_58196.mat','1.2','-0.005']
+# file names in which the experimental data are stored
+diagnostic_data_files = ['TCV_TS_58196_1200ms_combined', 'TCV_LP_58196_1200ms']
 
-# description of the data stored in the data file
-diagnostic_data_desc = ['Midplane TS','Divertor LP','Equilibrium','Data Time','Grid Equilibrium','Grid Time','TS Z shift']
+# description of the data stored in the data file - ne, te, ne_weighted_te, ti, prad or jsat
+diagnostic_data_observables = [['ne', 'ne_weighted_te'],
+                               ['jsat']]
+
+# description of the error data stored in the data file - ene, ete, eti, eprad or ejsat
+diagnostic_data_observables = [['ene', 'ete'],
+                               ['ejsat']]
 
 
 
@@ -46,11 +50,13 @@ solps_iter_reset = 5
 
 # Sets whether the divertor transport coefficients are overridden by those
 # used for the PFR
-set_divertor_transport = False
+set_divertor_transport = True
 
+# Number of species in SOLPS simulations
+solps_n_species = 9
 
-
-
+# Number of hours to leave SOLPS running before timing out
+solps_timeout_hours = 5
 
 # ----------------------------------------------------------------------------
 #   gaussian-process regression settings
@@ -121,8 +127,7 @@ optimisation_bounds = [
 
     # Divertor transport boundaries
     (0.1,50.0),   # radial particle diffusion
-    (0.1,50.0),   # radial ion heat diffusion
-    (0.1,50.0),   # radial electron heat diffusion
+    (0.1,50.0),   # radial heat diffusion
 ]
 
 # The 'fixed_parameter_values' list allows a sub-set of the parameters to be fixed at
@@ -157,6 +162,5 @@ fixed_parameter_values = [
 
     # Divertor transport parameters
     None,   # radial particle diffusion
-    None,   # radial ion heat diffusion
-    None,   # radial electron heat diffusion
+    None,   # radial heat diffusion
 ]
