@@ -25,7 +25,7 @@ diagnostic_data_observables = [['ne', 'ne_weighted_te'],
                                ['jsat']]
 
 # description of the error data stored in the data file - ene, ete, eti, eprad or ejsat
-diagnostic_data_observables = [['ene', 'ete'],
+diagnostic_data_errors = [['ene', 'ete'],
                                ['ejsat']]
 
 
@@ -57,6 +57,11 @@ solps_n_species = 9
 
 # Number of hours to leave SOLPS running before timing out
 solps_timeout_hours = 5
+
+
+
+
+
 
 # ----------------------------------------------------------------------------
 #   gaussian-process regression settings
