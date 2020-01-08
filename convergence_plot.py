@@ -48,9 +48,9 @@ ax1.legend()
 ax1.grid()
 
 ax2 = fig.add_subplot(122)
-ax2.plot(itr, df['expected_fractional_improvement'], 'o-')
+ax2.plot(itr, df['convergence_metric'], 'o-')
 ax2.set_xlabel('iteration')
-ax2.set_ylabel('expected fractional improvement')
+ax2.set_ylabel('convergence_metric')
 ax2.set_yscale('log')
 ax2.grid()
 

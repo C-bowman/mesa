@@ -96,7 +96,7 @@ if not isfile(output_directory + training_data_file):
             'log_posterior',
             'prediction_mean',
             'prediction_error',
-            'expected_fractional_improvement' ]
+            'convergence_metric' ]
 
     # create the empty dataframe to store the training data and save it to HDF
     df = DataFrame(columns=cols)
@@ -155,7 +155,7 @@ while True:
         'log_posterior' : log_posterior,
         'prediction_mean' : None,
         'prediction_error' : None,
-        'expected_fractional_improvement' : None
+        'convergence_metric' : None
     }
 
     df.loc[i] = row_dict # add the new row

@@ -242,7 +242,7 @@ while True:
         'log_posterior' : new_log_posterior,
         'prediction_mean' : mu_lp,
         'prediction_error' : sigma_lp,
-        'expected_fractional_improvement' : convergence
+        'convergence_metric' : convergence
     }
 
     df.loc[df.index.max()+1] = row_dict  # add the new row
