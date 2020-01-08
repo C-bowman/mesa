@@ -58,6 +58,8 @@ solps_n_species = 9
 # Number of hours to leave SOLPS running before timing out
 timeout_hours = 5
 
+# Number of hours to leave SOLPS running before timing out
+solps_timeout_hours = 5
 
 # ----------------------------------------------------------------------------
 #   gaussian-process regression settings
@@ -127,8 +129,7 @@ optimisation_bounds = [
 
     # Divertor transport boundaries
     (0.1,50.0),   # radial particle diffusion
-    (0.1,50.0),   # radial ion heat diffusion
-    (0.1,50.0),   # radial electron heat diffusion
+    (0.1,50.0),   # radial heat diffusion
 ]
 
 # The 'fixed_parameter_values' list allows a sub-set of the parameters to be fixed at
@@ -163,6 +164,5 @@ fixed_parameter_values = [
 
     # Divertor transport parameters
     None,   # radial particle diffusion
-    None,   # radial ion heat diffusion
-    None,   # radial electron heat diffusion
+    None,   # radial heat diffusion
 ]

@@ -132,11 +132,10 @@ while True:
     chi = linear_transport_profile(radius, new_parameters[0:9])
     D = linear_transport_profile(radius, new_parameters[9:18])
     dna = new_parameters[18]
-    hci = new_parameters[19]
-    hce = new_parameters[20]
+    hc  = new_parameters[19]
 
     # Run SOLPS for the new point
-    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hci, hce = hce, 
+    run_id = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc, 
                        run_directory = run_directory, output_directory = output_directory, 
                        solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt, timeout_hours = solps_timeout_hours,
                        n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
@@ -152,7 +151,7 @@ while True:
         'iteration' : i,
         'conductivity_parameters' : new_parameters[0:9],
         'diffusivity_parameters' : new_parameters[9:18],
-        'div_parameters' : new_parameters[18:21],
+        'div_parameters' : new_parameters[18:20],
         'log_posterior' : log_posterior,
         'prediction_mean' : None,
         'prediction_error' : None,
