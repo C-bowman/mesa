@@ -1,13 +1,12 @@
 
 from numpy import array, concatenate, mean, zeros
 from pandas import read_hdf
-
-from runpy import run_path
-from os.path import isfile
 from sys import argv
 
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
+from input_parsing import parse_inputs, check_dependencies
+
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.pdf_tools import BinaryTree
 
@@ -21,48 +20,8 @@ def grid_transform(point):
     tree = BinaryTree(limits = (0.,1.), layers = 6)
     return tuple([tree.lookup(v)[2] for v in point])
 
-def check_dependencies(settings):
-    '''
-    Checks that the files required to run the optimiser are present.
-    If a file is missing, an exception is raised.
-    '''
-
-    output_directory = settings['solps_output_directory']
-    training_data_file = settings['training_data_file']
-    diagnostic_data_files = settings['diagnostic_data_files']
-
-    # Check if diagnostic data is present
-    for df in diagnostic_data_files:
-        if not isfile(output_directory+df+'.h5'):
-            raise Exception('File not found: '+output_directory+df+'.h5')
-
-    # Check if training data is present
-    if not isfile(output_directory+training_data_file):
-        raise Exception('File not found: '+output_directory+training_data_file)
-
-
-
-
-
-# Get data from the settings module
-if len(argv) == 1: # check to see if the settings module path was given
-    raise ValueError('Path to settings module was not given as an argument')
-
-if isfile(argv[1]): # check to see if the given path is valid
-    settings = run_path(argv[1]) # run the settings module
-else:
-    raise ValueError('{} is not a valid path to a settings module'.format(argv[1]))
-
-# check that the settings module contains all the required information
-keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
-        'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
-        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function',
-        'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
-        'set_divertor_transport','solps_timeout_hours']
-
-for key in keys:
-    if key not in settings:
-        raise ValueError('"{}" was not found in the settings module'.format(key))
+# check the validity of the input file and return its contents
+settings = parse_inputs(argv)
 
 # Check other data files are present
 check_dependencies(settings)

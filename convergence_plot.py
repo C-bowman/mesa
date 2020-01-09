@@ -2,25 +2,11 @@ from numpy import maximum
 import matplotlib.pyplot as plt
 from pandas import read_hdf
 
-from runpy import run_path
-from os.path import isfile
+from input_parsing import parse_inputs
 from sys import argv
 
-# Get data from the settings module
-if len(argv) == 1: # check to see if the settings module path was given
-    raise ValueError('Path to settings module was not given as an argument')
-
-if isfile(argv[1]): # check to see if the given path is valid
-    # run the settings module
-    settings = run_path(argv[1])
-else:
-    raise ValueError('{} is not a valid path to a settings module'.format(argv[1]))
-
-# check that the settings module contains all the required information
-keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'max_iterations']
-for key in keys:
-    if key not in settings:
-        raise ValueError('"{}" was not found in the settings module'.format(key))
+# check the validity of the input file and return its contents
+settings = parse_inputs(argv)
 
 # extract the required information from settings
 output_directory = settings['solps_output_directory']

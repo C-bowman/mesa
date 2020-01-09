@@ -1,8 +1,7 @@
 from numpy import array, concatenate, mean
 from pandas import read_hdf
 
-from runpy import run_path
-from os.path import isfile
+from input_parsing import parse_inputs
 from sys import argv
 
 from inference.gp_tools import GpRegressor
@@ -15,25 +14,8 @@ def bounds_transform(v, bounds, inverse=False):
         return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
 
 
-
-
-
-# Get data from the settings module
-if len(argv) == 1: # check to see if the settings module path was given
-    raise ValueError('Path to settings module was not given as an argument')
-
-if isfile(argv[1]): # check to see if the given path is valid
-    # run the settings module
-    settings = run_path(argv[1])
-else:
-    raise ValueError('{} is not a valid path to a settings module'.format(argv[1]))
-
-# check that the settings module contains all the required information
-keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'diagnostic_data_file', 'max_iterations',
-        'cross_validation', 'covariance_kernel', 'fixed_parameter_values', 'initial_sample_count']
-for key in keys:
-    if key not in settings:
-        raise ValueError('"{}" was not found in the settings module'.format(key))
+# check the validity of the input file and return its contents
+settings = parse_inputs(argv)
 
 # extract the required information from settings
 output_directory = settings['solps_output_directory']
