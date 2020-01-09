@@ -5,7 +5,6 @@ from input_parsing import parse_inputs
 from sys import argv
 
 from inference.gp_tools import GpRegressor
-from inference.mcmc import GibbsChain, ParallelTempering
 
 def bounds_transform(v, bounds, inverse=False):
     if inverse:
@@ -57,46 +56,10 @@ log_posterior -= data_mean
 
 # construct the GP
 GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
+bfgs_hps = GP.multistart_bfgs(starts = 50)
 
-# define a set of temperature levels
-N_levels = 6
-temps = [10**(2.*k/(N_levels-1.)) for k in range(N_levels)]
-
-# create a set of chains - one with each temperature
-bounds = GP.cov.get_bounds()
-chains = [ GibbsChain(posterior=GP.model_selector, start = [0.5*(b[0] + b[1]) for b in bounds], temperature=T) for T in temps ]
-for chain in chains:
-    for i, b in enumerate(bounds): chain.set_boundaries(i, b)
-
-# When an instance of ParallelTempering is created, a dedicated process for each chain is spawned.
-# These separate processes will automatically make use of the available cpu cores, such that the
-# computations to advance the separate chains are performed in parallel.
-PT = ParallelTempering(chains=chains)
-
-PT.run_for(minutes=2)
-
-chains = PT.return_chains()
-PT.shutdown()
-
-# PT.swap_diagnostics()
-
-# extract the hyper-parameter estimate
-mode = chains[0].mode()
-
-# if MCMC found a better solution then use it
-de_score = GP.model_selector(GP.hyperpars)
-mc_score = GP.model_selector(mode)
-
-if mc_score > de_score:
-    GP.set_hyperparameters(mode)
-
-print("""
--------------------------
-| DiffEv score: {}
-|   MCMC score: {}
--------------------------
-""".format(de_score/len(training_points), mc_score/len(training_points))
-      )
+if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
+    GP.set_hyperparameters(bfgs_hps)
 
 # get the LOO predictions
 mu_loo, sigma_loo = GP.loo_predictions()
