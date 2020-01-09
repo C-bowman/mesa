@@ -56,7 +56,7 @@ else:
 # check that the settings module contains all the required information
 keys = ['solps_run_directory', 'solps_output_directory', 'optimisation_bounds', 'training_data_file',
         'diagnostic_data_files', 'diagnostic_data_observables', 'diagnostic_data_errors','initial_sample_count',
-        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function', 'normalise_training_data', 
+        'solps_n_species', 'solps_n_timesteps', 'solps_dt', 'acquisition_function',
         'cross_validation', 'covariance_kernel','trust_region', 'trust_region_width', 'fixed_parameter_values',
         'set_divertor_transport','solps_timeout_hours']
 
@@ -91,7 +91,6 @@ initial_sample_count = settings['initial_sample_count']
 fixed_parameter_values = settings['fixed_parameter_values']
 optimisation_bounds = settings['optimisation_bounds']
 acquisition_function = settings['acquisition_function']
-normalise_training_data = settings['normalise_training_data']
 cross_validation = settings['cross_validation']
 covariance_kernel = settings['covariance_kernel']
 trust_region = settings['trust_region']
@@ -131,9 +130,8 @@ while True:
     training_points = [v[varied_inds] for v in normalised_parameters]
 
     # if requested, normalise the training data to have zero mean
-    if normalise_training_data:
-        data_mean = mean(log_posterior)
-        log_posterior -= data_mean
+    data_mean = mean(log_posterior[:initial_sample_count])
+    log_posterior -= data_mean
 
     # construct the GP
     GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
@@ -200,9 +198,8 @@ while True:
             """
         )
 
-    # add the mean back to the prediction if the data was normalised
-    if normalise_training_data:
-        mu_lp += data_mean
+    # add the mean back to the prediction
+    mu_lp += data_mean
 
     # produce transport profiles defined by new point
     radius = profile_radius_axis()

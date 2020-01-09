@@ -67,10 +67,6 @@ solps_timeout_hours = 5
 #   gaussian-process regression settings
 # ----------------------------------------------------------------------------
 
-# specifies whether the training data is normalised to have zero mean
-# before modelling it using the Gaussian process
-normalise_training_data = True
-
 # Boolean flag to set whether cross-validation should be used in place
 # of the marginal likelihood to select the GP hyper-parameters
 cross_validation = False

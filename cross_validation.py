@@ -30,7 +30,7 @@ else:
 
 # check that the settings module contains all the required information
 keys = ['solps_output_directory', 'optimisation_bounds', 'training_data_file', 'diagnostic_data_file', 'max_iterations',
-        'normalise_training_data', 'cross_validation', 'covariance_kernel', 'fixed_parameter_values']
+        'cross_validation', 'covariance_kernel', 'fixed_parameter_values', 'initial_sample_count']
 for key in keys:
     if key not in settings:
         raise ValueError('"{}" was not found in the settings module'.format(key))
@@ -41,10 +41,10 @@ optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
 max_iterations = settings['max_iterations']
-normalise_training_data = settings['normalise_training_data']
 cross_validation = settings['cross_validation']
 covariance_kernel = settings['covariance_kernel']
 fixed_parameter_values = settings['fixed_parameter_values']
+initial_sample_count = settings['initial_sample_count']
 
 
 # build the indices for the varied vs fixed parameters:
@@ -70,9 +70,8 @@ normalised_parameters = [bounds_transform(p,optimisation_bounds) for p in parame
 training_points = [v[varied_inds] for v in normalised_parameters]
 
 # if requested, normalise the training data to have zero mean
-if normalise_training_data:
-    data_mean = mean(log_posterior)
-    log_posterior -= data_mean
+data_mean = mean(log_posterior[:initial_sample_count])
+log_posterior -= data_mean
 
 # construct the GP
 GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
