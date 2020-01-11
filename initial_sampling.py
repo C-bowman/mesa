@@ -17,7 +17,7 @@ def hypercube_sample(bounds):
 settings = parse_inputs(argv)
 
 # Check other data files are present
-check_dependencies(settings)
+check_dependencies(settings, skip_training = True)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']

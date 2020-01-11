@@ -50,7 +50,7 @@ def parse_inputs(args):
     return settings
 
 
-def check_dependencies(settings):
+def check_dependencies(settings, skip_training = False):
     """
     Checks that the files required to run the optimiser are present.
     If a file is missing, an exception is raised.
@@ -65,5 +65,6 @@ def check_dependencies(settings):
             raise Exception('File not found: '+output_directory+df+'.h5')
 
     # Check if training data is present
-    if not isfile(output_directory+training_data_file):
-        raise Exception('File not found: '+output_directory+training_data_file)
+    if skip_training is False:
+        if not isfile(output_directory+training_data_file):
+            raise Exception('File not found: '+output_directory+training_data_file)
