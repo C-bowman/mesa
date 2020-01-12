@@ -4,8 +4,9 @@ from numpy.random import random
 from pandas import DataFrame, read_hdf
 
 from os.path import isfile
-from input_parsing import parse_inputs, check_dependencies
+from input_parsing import parse_inputs, check_dependencies, logger_setup
 from sys import argv
+import logging
 
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
@@ -18,6 +19,9 @@ settings = parse_inputs(argv)
 
 # Check other data files are present
 check_dependencies(settings, skip_training = True)
+
+# set-up the log file
+logger_setup(argv)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']
@@ -107,9 +111,9 @@ while True:
                            n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     if run_status == False:
-        print('[initial_sampling] Restoring SOLPS run directory from reference.')
+        logging.info('[initial_sampling] Restoring SOLPS run directory from reference.')
         reset_solps(run_directory,ref_directory)
-        print('[initial_sampling] Restoration complete, trying new run...')
+        logging.info('[initial_sampling] Restoration complete, trying new run...')
         continue
 
     # evaluate the chi-squared

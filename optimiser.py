@@ -2,10 +2,11 @@
 from numpy import array, concatenate, mean, zeros
 from pandas import read_hdf
 from sys import argv
+import logging
 
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
-from input_parsing import parse_inputs, check_dependencies
+from input_parsing import parse_inputs, check_dependencies, logger_setup
 
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.pdf_tools import BinaryTree
@@ -25,6 +26,9 @@ settings = parse_inputs(argv)
 
 # Check other data files are present
 check_dependencies(settings)
+
+# set-up the log file
+logger_setup(argv)
 
 # data & results filepaths
 run_directory = settings['solps_run_directory']
@@ -70,7 +74,10 @@ while True:
     # load the training data
     df = read_hdf(output_directory + training_data_file, 'training')
     # break the loop if we've hit the max number of iterations
-    if df['iteration'].max() >= max_iterations: break
+    if df['iteration'].max() >= max_iterations:
+        logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
+        break
+
     # extract the training data
     log_posterior = df['log_posterior'].to_numpy().copy()
 
@@ -178,9 +185,9 @@ while True:
                            n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
 
     if run_status == False:
-        print('[optimiser] Restoring SOLPS run directory from reference.')
+        logging.info('[optimiser] Restoring SOLPS run directory from reference.')
         reset_solps(run_directory,ref_directory)
-        print('[optimiser] Restoration complete, trying new run...')
+        logging.info('[optimiser] Restoration complete, trying new run...')
         continue
 
     # evaluate the chi-squared

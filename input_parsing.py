@@ -1,6 +1,7 @@
 
 from runpy import run_path
 from os.path import isfile
+import logging
 
 input_variables = [
 # directory settings
@@ -68,3 +69,10 @@ def check_dependencies(settings, skip_training = False):
     if skip_training is False:
         if not isfile(output_directory+training_data_file):
             raise Exception('File not found: '+output_directory+training_data_file)
+
+
+def logger_setup(args):
+    input_file = args[1]
+    if input_file.endswith('.py'): input_file=input_file[:-3]
+    log_file = input_file + '.log'
+    logging.basicConfig(filename=log_file,level=logging.INFO)

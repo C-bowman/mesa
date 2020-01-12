@@ -2,16 +2,14 @@
 from os import getcwd, chdir
 from os.path import exists
 from time import sleep, time
+import logging
 import subprocess
 import filecmp
-from scipy.io import netcdf, loadmat
-from numpy import array, arange, min, isfinite, mean, squeeze, sum, argmin, abs, shape, where, zeros, sqrt, vstack, unique
-from scipy.interpolate import interp1d, interp2d
+from scipy.io import netcdf
+from numpy import array, arange, isfinite, mean, sum, where, zeros, sqrt, vstack, unique
 from copy import deepcopy
 import matplotlib.path as mplPath
 from pandas import read_hdf
-
-import matplotlib.pyplot as plt
 
 def write_solps_transport_inputfile(filename,
                                     n_species,
@@ -320,7 +318,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     tmp = str(start_run_output).find(findstr)
     jobstr = str(start_run_output)[tmp+len(findstr)+1:-3]
 
-    print('[solps_interface] Submitted job '+jobstr)
+    logging.info('[solps_interface] Submitted job '+jobstr)
 
     # set a time-out point
     timeout = time() + 3600*timeout_hours
@@ -337,15 +335,15 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
 
     while True:
         if jobpos == -1: # check if the job is still running
-            print('[solps_interface] Job '+jobstr+' has finished')
+            logging.info('[solps_interface] Job '+jobstr+' has finished')
             break
         else:
-            print('[solps_interface] Job '+jobstr+' is in progress...')
+            logging.debug('[solps_interface] Job '+jobstr+' is in progress...')
 
         if time() > timeout: # check to see if we've timed out
             #raise TimeoutError('No SOLPS output file was detected within the time-out limit')
-            print('[solps_interface] No SOLPS output file was detected within the time-out limit')
-            cancel_solps(jobstr)
+            logging.warning('[solps_interface] No SOLPS output file was detected within the time-out limit')
+            cancel_solps(jobstr) # TODO - does this function actually break the while loop? if not is a break needed?
 
         sleep(30) # wait for 30 seconds between checks
 
@@ -359,7 +357,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     new_output_path = output_directory + 'solps_run_{}.nc'.format(iteration)
 
     if exists(output_path):
-        print('[solps_interface] SOLPS run completed successfully.')
+        logging.info('[solps_interface] SOLPS run completed successfully.')
         # copy the SOLPS output to the solps_output_directory
         copyoutputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
         copyoutputfiles.communicate()
@@ -380,7 +378,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
 
         return True
     else:
-        print('[solps_interface] SOLPS run failed.')
+        logging.warning('[solps_interface] SOLPS run failed.')
 
         chdir(orig_dir)
 
