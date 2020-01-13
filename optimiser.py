@@ -178,6 +178,14 @@ while True:
     # get the current iteration number
     i = df['iteration'].max()+1
 
+    logging.info('--- Starting iteration '+str(i)+' ---')
+    logging.info('New chi parameters:')
+    logging.info(new_parameters[0:9])
+    logging.info('New D parameters:')
+    logging.info(new_parameters[9:18])
+    logging.info('Divertor parameters:')
+    logging.info(new_parameters[18:20])
+
     # Run SOLPS for the new point
     run_status = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc,
                            run_directory = run_directory, output_directory = output_directory,
