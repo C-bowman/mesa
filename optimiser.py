@@ -78,6 +78,10 @@ while True:
         logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
         break
 
+    # get the current iteration number
+    i = df['iteration'].max()+1
+    logging.info('--- Starting iteration '+str(i)+' ---')
+
     # extract the training data
     log_posterior = df['log_posterior'].to_numpy().copy()
 
@@ -108,6 +112,8 @@ while True:
     else:
         mode = GP.hyperpars
 
+    logging.info('[optimiser] GP hyper-parameter tuning complete - hyper-parameter values are:')
+    logging.info(mode)
 
     # If a trust-region approach is being used, limit the search area
     # to a region around the current maximum
@@ -135,6 +141,9 @@ while True:
         new_point = bfgs_prop
     else:
         new_point = diff_prop
+
+    logging.info('[optimiser] Acquisition function maximisation complete - max function value was:')
+    logging.info(max(bfgs_acq, diff_acq))
 
     # calculate the convergence metric
     convergence = GPopt.acquisition.convergence_metric(new_point)
@@ -175,10 +184,6 @@ while True:
     dna = new_parameters[18]
     hc = new_parameters[19]
 
-    # get the current iteration number
-    i = df['iteration'].max()+1
-
-    logging.info('--- Starting iteration '+str(i)+' ---')
     logging.info('New chi parameters:')
     logging.info(new_parameters[0:9])
     logging.info('New D parameters:')
