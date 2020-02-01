@@ -13,6 +13,7 @@ output_directory = settings['solps_output_directory']
 optimisation_bounds = settings['optimisation_bounds']
 training_data_file = settings['training_data_file']
 max_iterations = settings['max_iterations']
+error_model = settings['error_model']
 
 
 
@@ -20,7 +21,11 @@ max_iterations = settings['max_iterations']
 df = read_hdf(output_directory + training_data_file, 'training')
 
 itr = df['iteration']
-LP = df['log_posterior']
+if error_model == 'Gaussian':
+    LP = df['gauss_logprob'].to_numpy().copy()
+elif error_model == 'Cauchy':
+    LP = df['cauchy_logprob'].to_numpy().copy()
+
 running_max = maximum.accumulate(LP)
 
 fig = plt.figure(figsize=(12,6))

@@ -6,7 +6,7 @@ import logging
 import subprocess
 import filecmp
 from scipy.io import netcdf
-from numpy import array, arange, isfinite, mean, sum, where, zeros, sqrt, vstack, unique
+from numpy import array, arange, isfinite, mean, sum, where, zeros, sqrt, vstack, unique, log
 from copy import deepcopy
 import matplotlib.path as mplPath
 from pandas import read_hdf
@@ -520,8 +520,20 @@ def calc_point_geo_matrix(samples_r,samples_z,samples_n,cells):
 
 
 
+def gaussian_likelihood(data, errors, prediction):
+    z = (data-prediction)/errors
+    return -0.5*(z**2).sum()
+
+
+
+def cauchy_likelihood(data, errors, prediction):
+    z = (data-prediction)/errors
+    return -log(1 + z**2).sum()
+
+
+
 def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,
-                           diagnostic_data_observables = None, diagnostic_data_errors = None):
+                           diagnostic_data_observables = None):
     """
     :param int iteration: \
         iteration number of the solps run for which the posterior log-probability is calculated.
@@ -565,17 +577,14 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     solps_jsat_cell = array(solps_jsat_cell)
     solps_prad_cell = array(solps_prad_cell)
 
-    # Initialise the log probabilities
-    electron_density_log_probability = 0.0
-    electron_temperature_log_probability = 0.0
-    ion_temperature_log_probability = 0.0
-    jsat_log_probability = 0.0
-    prad_log_probability = 0.0
+    # storage for the log-probabilities
+    gauss_logprobs = []
+    cauchy_logprobs = []
 
     # Read the experimental data
-    for i in arange(len(diagnostic_data_files)):
+    for filename, observables in zip(diagnostic_data_files, diagnostic_data_observables):
 
-        data = read_hdf(directory+diagnostic_data_files[i]+'.h5','data',mode='r')
+        data = read_hdf(directory+filename+'.h5','data',mode='r')
         data_validindx = isfinite(data['r'])
 
         # Read the geometry information
@@ -595,76 +604,43 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
         if data_type == 'line':
             raise Exception('Measurement type not yet supported.')
 
-        for j in arange(len(diagnostic_data_observables[i])):
-            if diagnostic_data_observables[i][j] == 'ne':
-                solps_projected = geomat.dot(solps_ne_cell)
+        for tag in observables:
+            if tag == 'ne':
+                predicted_data = geomat.dot(solps_ne_cell)
 
-            if diagnostic_data_observables[i][j] == 'te':
-                solps_projected = geomat.dot(solps_te_cell)
+            if tag == 'te':
+                predicted_data = geomat.dot(solps_te_cell)
 
-            if diagnostic_data_observables[i][j] == 'ne_weighted_te':
-                solps_projected = geomat.dot(solps_te_cell*solps_ne_cell)/geomat.dot(solps_ne_cell)
+            if tag == 'ne_weighted_te':
+                predicted_data = geomat.dot(solps_te_cell*solps_ne_cell)/geomat.dot(solps_ne_cell)
 
-            if diagnostic_data_observables[i][j] == 'ti':
-                solps_projected = geomat.dot(solps_ti_cell)
+            if tag == 'ti':
+                predicted_data = geomat.dot(solps_ti_cell)
 
-            if diagnostic_data_observables[i][j] == 'jsat':
-                solps_projected = geomat.dot(solps_jsat_cell)
+            if tag == 'jsat':
+                predicted_data = geomat.dot(solps_jsat_cell)
 
-            if diagnostic_data_observables[i][j] == 'prad':
-                solps_projected = geomat.dot(solps_prad_cell)
+            if tag == 'prad':
+                predicted_data = geomat.dot(solps_prad_cell)
 
             # Filter the projected data so that only measurements made within the SOLPS grid
             # are retained
             geo_validindx = where(sum(geomat,axis=1) > 0.99)[0]
 
-            expt_data = data[diagnostic_data_observables[i][j]].values[data_validindx][geo_validindx]
-            expt_err = data[diagnostic_data_errors[i][j]].values[data_validindx][geo_validindx]
-            solps_projected = solps_projected[geo_validindx]
+            expt_data = data[tag].values[data_validindx][geo_validindx]
+            expt_err = data[tag].values[data_validindx][geo_validindx]
+            predicted_data = predicted_data[geo_validindx]
 
-            # Calculate the log probability for the observable    
-            if diagnostic_data_observables[i][j] == 'ne':
-                for k in arange(len(expt_data)):
-                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
-                            electron_density_log_probability = electron_density_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
+            # get indices where both the data and the errors are finite
+            finite = where(isfinite(expt_data) & isfinite(expt_err))
 
-            if diagnostic_data_observables[i][j] == 'te' or diagnostic_data_observables[i][j] == 'ne_weighted_te':
-                for k in arange(len(expt_data)):
-                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
-                            electron_temperature_log_probability = electron_temperature_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
-
-            if diagnostic_data_observables[i][j] == 'ti':
-                for k in arange(len(expt_data)):
-                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
-                            ion_temperature_log_probability = ion_temperature_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
-
-            if diagnostic_data_observables[i][j] == 'jsat':
-                for k in arange(len(expt_data)):
-                        if isfinite(expt_data[k]) and isfinite(expt_err[k]):
-                            jsat_log_probability = jsat_log_probability+(expt_data[k]-solps_projected[k])**2/expt_err[k]**2
-
-            if diagnostic_data_observables[i][j] == 'prad':
-                raise Exception('Measurement type not yet supported')
-
-    # Multiply the overall log probabilities by -0.5
-    electron_density_log_probability *= -0.5
-    electron_temperature_log_probability *= -0.5
-    ion_temperature_log_probability *= -0.5
-    jsat_log_probability *= -0.5
-    prad_log_probability *= -0.5
-
-    print(['Electron density log probability ', electron_density_log_probability])
-    print(['Electron temperature log probability ', electron_temperature_log_probability])
-    print(['Ion temperature log probability ', ion_temperature_log_probability])
-    print(['Ion saturation current log probability ', jsat_log_probability])
-    print(['Radiated power log probability ', prad_log_probability])
+            cauchy_logprobs.append( cauchy_likelihood( expt_data[finite], expt_err[finite], predicted_data[finite] ) )
+            gauss_logprobs.append( gaussian_likelihood( expt_data[finite], expt_err[finite], predicted_data[finite] ) )
 
     # calculate the log-posterior probability
-    log_posterior = electron_density_log_probability + electron_temperature_log_probability + ion_temperature_log_probability + jsat_log_probability + prad_log_probability
-
-    print(['Overall log probability ', log_posterior])
-
-    return log_posterior # return the log-posterior
+    total_cauchy_logprob = sum(cauchy_logprobs)
+    total_gauss_logprob = sum(gauss_logprobs)
+    return total_gauss_logprob, total_cauchy_logprob
 
 
 

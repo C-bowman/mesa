@@ -11,7 +11,6 @@ input_variables = [
     'training_data_file',
     'diagnostic_data_files',
     'diagnostic_data_observables',
-    'diagnostic_data_errors',
 # SOLPS settings
     'solps_n_timesteps',
     'solps_dt',
@@ -23,6 +22,7 @@ input_variables = [
 # gaussian-process regression settings
     'cross_validation',
     'covariance_kernel',
+    'error_model',
 # optimiser settings
     'initial_sample_count',
     'max_iterations',

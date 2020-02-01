@@ -24,10 +24,6 @@ diagnostic_data_files = ['TCV_TS_58196_1200ms_combined', 'TCV_LP_58196_1200ms']
 diagnostic_data_observables = [['ne', 'ne_weighted_te'],
                                ['jsat']]
 
-# description of the error data stored in the data file - ene, ete, eti, eprad or ejsat
-diagnostic_data_errors = [['ene', 'ete'],
-                               ['ejsat']]
-
 
 
 
@@ -62,7 +58,6 @@ solps_timeout_hours = 5
 
 
 
-
 # ----------------------------------------------------------------------------
 #   gaussian-process regression settings
 # ----------------------------------------------------------------------------
@@ -75,6 +70,10 @@ cross_validation = False
 # covariance_kernel variable so it can be passed to the GP.
 from inference.gp_tools import SquaredExponential
 covariance_kernel = SquaredExponential
+
+# Choose whether the errors on the experimental data are treated either as
+# Gaussian or Cauchy:
+error_model = 'gaussian'
 
 
 

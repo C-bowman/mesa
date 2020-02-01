@@ -12,14 +12,18 @@ settings = parse_inputs(argv)
 output_directory = settings['solps_output_directory']
 training_data_file = settings['training_data_file']
 initial_sample_count = settings['initial_sample_count']
-
+error_model = settings['error_model']
 
 # read and unpack the training data
 df = read_hdf(output_directory + training_data_file, 'training')
 
 start = initial_sample_count
 stop = None
-LP = df['log_posterior'][start:stop].to_numpy().copy()
+if error_model == 'Gaussian':
+    LP = df['gauss_logprob'][start:stop].to_numpy().copy()
+elif error_model == 'Cauchy':
+    LP = df['cauchy_logprob'][start:stop].to_numpy().copy()
+
 X = df['conductivity_parameters'][start:stop]
 D = df['diffusivity_parameters'][start:stop]
 

@@ -37,7 +37,6 @@ output_directory = settings['solps_output_directory']
 training_data_file = settings['training_data_file']
 diagnostic_data_files = settings['diagnostic_data_files']
 diagnostic_data_observables = settings['diagnostic_data_observables']
-diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_species = settings['solps_n_species']
@@ -55,6 +54,7 @@ fixed_parameter_values = settings['fixed_parameter_values']
 optimisation_bounds = settings['optimisation_bounds']
 acquisition_function = settings['acquisition_function']
 cross_validation = settings['cross_validation']
+error_model = settings['error_model']
 covariance_kernel = settings['covariance_kernel']
 trust_region = settings['trust_region']
 trust_region_width = settings['trust_region_width']
@@ -83,8 +83,11 @@ while True:
     logging.info('--- Starting iteration '+str(i)+' ---')
 
     # extract the training data
-    log_posterior = df['log_posterior'].to_numpy().copy()
-
+    if error_model == 'Gaussian':
+        log_posterior = df['gauss_logprob'].to_numpy().copy()
+    elif error_model == 'Cauchy':
+        log_posterior = df['cauchy_logprob'].to_numpy().copy()
+        
     parameters = []
     for X, D, H in zip(df['conductivity_parameters'], df['diffusivity_parameters'], df['div_parameters']):
         parameters.append( concatenate([X,D,H]) )
@@ -204,10 +207,9 @@ while True:
         continue
 
     # evaluate the chi-squared
-    new_log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                               diagnostic_data_files = diagnostic_data_files,
-                                               diagnostic_data_observables = diagnostic_data_observables,
-                                               diagnostic_data_errors = diagnostic_data_errors)
+    gauss_logprob, cauchy_logprob = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                                           diagnostic_data_files = diagnostic_data_files,
+                                                           diagnostic_data_observables = diagnostic_data_observables)
 
     # build a new row for the dataframe
     row_dict = {
@@ -215,7 +217,8 @@ while True:
         'conductivity_parameters' : new_parameters[0:9],
         'diffusivity_parameters' : new_parameters[9:18],
         'div_parameters' : new_parameters[18:20],
-        'log_posterior' : new_log_posterior,
+        'gauss_logprob' : gauss_logprob,
+        'cauchy_logprob' : cauchy_logprob,
         'prediction_mean' : mu_lp,
         'prediction_error' : sigma_lp,
         'convergence_metric' : convergence

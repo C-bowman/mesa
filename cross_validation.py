@@ -23,6 +23,7 @@ training_data_file = settings['training_data_file']
 diagnostic_data_file = settings['diagnostic_data_file']
 max_iterations = settings['max_iterations']
 cross_validation = settings['cross_validation']
+error_model = settings['error_model']
 covariance_kernel = settings['covariance_kernel']
 fixed_parameter_values = settings['fixed_parameter_values']
 initial_sample_count = settings['initial_sample_count']
@@ -38,7 +39,11 @@ fixed_values = array([ v for i,v in enumerate(fixed_parameter_values) if v is no
 df = read_hdf(output_directory+training_data_file)
 
 # extract the training data
-log_posterior = df['log_posterior'].to_numpy().copy()
+if error_model == 'Gaussian':
+    log_posterior = df['gauss_logprob'].to_numpy().copy()
+elif error_model == 'Cauchy':
+    log_posterior = df['cauchy_logprob'].to_numpy().copy()
+
 parameters = []
 for X, D, H in zip(df['conductivity_parameters'], df['diffusivity_parameters'], df['div_parameters']):
     parameters.append(concatenate([X, D, H]))

@@ -30,7 +30,6 @@ ref_directory = settings['solps_ref_directory']
 training_data_file = settings['training_data_file']
 diagnostic_data_files = settings['diagnostic_data_files']
 diagnostic_data_observables = settings['diagnostic_data_observables']
-diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_timesteps = settings['solps_n_timesteps']
@@ -63,7 +62,8 @@ if not isfile(output_directory + training_data_file):
             'conductivity_parameters',
             'diffusivity_parameters',
             'div_parameters',
-            'log_posterior',
+            'gauss_logprob',
+            'cauchy_logprob',
             'prediction_mean',
             'prediction_error',
             'convergence_metric' ]
@@ -125,10 +125,9 @@ while True:
         continue
 
     # evaluate the chi-squared
-    log_posterior = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                           diagnostic_data_files = diagnostic_data_files,
-                                           diagnostic_data_observables = diagnostic_data_observables,
-                                           diagnostic_data_errors = diagnostic_data_errors)
+    gauss_logprob, cauchy_logprob = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                                           diagnostic_data_files = diagnostic_data_files,
+                                                           diagnostic_data_observables = diagnostic_data_observables)
 
     # build a new row for the dataframe
     row_dict = {
@@ -136,7 +135,8 @@ while True:
         'conductivity_parameters' : new_parameters[0:9],
         'diffusivity_parameters' : new_parameters[9:18],
         'div_parameters' : new_parameters[18:20],
-        'log_posterior' : log_posterior,
+        'gauss_logprob' : gauss_logprob,
+        'cauchy_logprob' : cauchy_logprob,
         'prediction_mean' : None,
         'prediction_error' : None,
         'convergence_metric' : None
