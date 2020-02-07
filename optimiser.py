@@ -1,5 +1,5 @@
 
-from numpy import array, concatenate, mean, zeros
+from numpy import array, mean
 from pandas import read_hdf
 from sys import argv
 import logging
@@ -7,6 +7,7 @@ import logging
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
 from input_parsing import parse_inputs, check_dependencies, logger_setup
+from parameter_sets import conductivity_profile, diffusivity_profile
 
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.pdf_tools import BinaryTree
@@ -60,13 +61,9 @@ trust_region = settings['trust_region']
 trust_region_width = settings['trust_region_width']
 
 
-
-
-# build the indices for the varied vs fixed parameters:
-varied_inds  = array([ i for i,v in enumerate(fixed_parameter_values) if v is None])
-fixed_inds   = array([ i for i,v in enumerate(fixed_parameter_values) if v is not None])
-fixed_values = array([ v for i,v in enumerate(fixed_parameter_values) if v is not None])
-
+all_parameters = [key for key in fixed_parameter_values.keys()]
+free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
+fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
 
 
 # start the optimisation loop
@@ -89,25 +86,22 @@ while True:
         log_posterior = df['cauchy_logprob'].to_numpy().copy()
         
     parameters = []
-    for X, D, H in zip(df['conductivity_parameters'], df['diffusivity_parameters'], df['div_parameters']):
-        parameters.append( concatenate([X,D,H]) )
+    for tup in zip(*[df[p] for p in free_parameters]):
+        parameters.append( array(tup) )
 
     # convert the data to the normalised coordinates:
-    normalised_parameters = [bounds_transform(p,optimisation_bounds) for p in parameters]
+    free_parameter_bounds = [optimisation_bounds[k] for k in free_parameters]
+    normalised_parameters = [bounds_transform(p,free_parameter_bounds) for p in parameters]
 
     # build the set of grid-transformed points
     grid_set = set( grid_transform(p) for p in normalised_parameters )
-
-    # get the training points by extracting the parameters which are to be optimised
-    # from the normalised parameter vectors:
-    training_points = [v[varied_inds] for v in normalised_parameters]
 
     # if requested, normalise the training data to have zero mean
     data_mean = mean(log_posterior[:initial_sample_count])
     log_posterior -= data_mean
 
     # construct the GP
-    GP = GpRegressor(training_points, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
+    GP = GpRegressor(normalised_parameters, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
     bfgs_hps = GP.multistart_bfgs(starts=50)
 
     if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
@@ -123,14 +117,14 @@ while True:
     trhw = 0.5*trust_region_width
     if trust_region:
         max_ind = log_posterior.argmax()
-        max_point = training_points[max_ind]
+        max_point = normalised_parameters[max_ind]
         search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
     else:
-        search_bounds = [(0.,1.) for i in range(len(varied_inds))]
+        search_bounds = [(0.,1.) for i in range(len(free_parameters))]
 
 
     # build the GP-optimiser
-    GPopt = GpOptimiser(training_points, log_posterior, hyperpars = GP.hyperpars, bounds=search_bounds,
+    GPopt = GpOptimiser(normalised_parameters, log_posterior, hyperpars = GP.hyperpars, bounds=search_bounds,
                         cross_val = cross_validation, kernel = covariance_kernel, acquisition=acquisition_function)
 
     # maximise the acquisition both by multi-start bfgs and differential evolution, and use the best of the two
@@ -154,15 +148,19 @@ while True:
     # get predicted log-probability at the new point
     mu_lp, sigma_lp = GPopt.gp(new_point)
 
-    # convert the new point to a new parameter vector
-    new_normalised_parameters = zeros(len(fixed_parameter_values))
-    new_normalised_parameters[varied_inds] = new_point
-
     # back-transform to get the new point as model parameters
-    new_parameters = bounds_transform(new_normalised_parameters, optimisation_bounds, inverse=True)
+    new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
 
-    # now insert the values of the fixed parameters
-    if len(fixed_inds) > 0: new_parameters[fixed_inds] = fixed_values
+    # create the dictionary for this iteration
+    row_dict = {}
+
+    # add values for all the fixed parameters
+    for key in fixed_parameters:
+        row_dict[key] = fixed_parameter_values[key]
+
+    # add the new free parameter values
+    for key, val in zip(free_parameters, new_parameters):
+        row_dict[key] = val
 
     # check to see if the grid-transformed new point is already in the evaluated set
     if grid_transform(bounds_transform(new_parameters, optimisation_bounds)) in grid_set:
@@ -182,17 +180,20 @@ while True:
     # produce transport profiles defined by new point
     radius = profile_radius_axis()
 
-    chi = linear_transport_profile(radius, new_parameters[0:9])
-    D = linear_transport_profile(radius, new_parameters[9:18])
-    dna = new_parameters[18]
-    hc = new_parameters[19]
+    chi_params = [row_dict[k] for k in conductivity_profile]
+    chi = linear_transport_profile(radius, chi_params)
+
+    D_params = [row_dict[k] for k in diffusivity_profile]
+    D = linear_transport_profile(radius, D_params)
+    dna = row_dict['D_div']
+    hc  = row_dict['chi_div']
 
     logging.info('New chi parameters:')
-    logging.info(new_parameters[0:9])
+    logging.info(chi_params)
     logging.info('New D parameters:')
-    logging.info(new_parameters[9:18])
+    logging.info(D_params)
     logging.info('Divertor parameters:')
-    logging.info(new_parameters[18:20])
+    logging.info([dna, hc])
 
     # Run SOLPS for the new point
     run_status = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc,
@@ -212,17 +213,12 @@ while True:
                                                            diagnostic_data_observables = diagnostic_data_observables)
 
     # build a new row for the dataframe
-    row_dict = {
-        'iteration' : i,
-        'conductivity_parameters' : new_parameters[0:9],
-        'diffusivity_parameters' : new_parameters[9:18],
-        'div_parameters' : new_parameters[18:20],
-        'gauss_logprob' : gauss_logprob,
-        'cauchy_logprob' : cauchy_logprob,
-        'prediction_mean' : mu_lp,
-        'prediction_error' : sigma_lp,
-        'convergence_metric' : convergence
-    }
+    row_dict['iteration'] = i
+    row_dict['gauss_logprob'] = gauss_logprob
+    row_dict['cauchy_logprob'] = cauchy_logprob
+    row_dict['prediction_mean'] = mu_lp,
+    row_dict['prediction_error'] = sigma_lp,
+    row_dict['convergence_metric'] = convergence
 
     df.loc[df.index.max()+1] = row_dict  # add the new row
     df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data

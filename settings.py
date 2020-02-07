@@ -102,65 +102,65 @@ trust_region_width = 0.08
 
 # Lower & upper bounds placed on the values of the
 # profile model parameters
-optimisation_bounds = [
+optimisation_bounds = {
     # Chi-profile parameter boundaries
-    (0.,2.),   # left boundary height from barrier level
-    (0.,2.),   # right boundary height from barrier level
-    (0.,1.),   # left-middle height as a fraction of barrier-boundary gap
-    (0.,1.),   # right-middle height as a fraction of barrier-boundary gap
-    (-0.01, 0.01), # transport barrier centre
-    (0.05, 0.4),   # transport barrier height
-    (0.002, 0.04), # transport barrier width
-    (1e-3, 0.05),  # radius gap between left-midpoint and transport barrier
-    (1e-3, 0.05),  # radius gap between right-midpoint and transport barrier
+    'chi_boundary_left'  : (0.,2.),   # left boundary height from barrier level
+    'chi_boundary_right' : (0.,2.),   # right boundary height from barrier level
+    'chi_frac_left'      : (0.,1.),   # left-middle height as a fraction of barrier-boundary gap
+    'chi_frac_right'     : (0.,1.),   # right-middle height as a fraction of barrier-boundary gap
+    'chi_barrier_centre' : (-0.01, 0.01), # transport barrier centre
+    'chi_barrier_height' : (0.05, 0.4),   # transport barrier height
+    'chi_barrier_width'  : (0.002, 0.04), # transport barrier width
+    'chi_gap_left'       : (1e-3, 0.05),  # radius gap between left-midpoint and transport barrier
+    'chi_gap_right'      : (1e-3, 0.05),  # radius gap between right-midpoint and transport barrier
 
     # D-profile parameter boundaries
-    (0.,2.),   # left boundary height from barrier level
-    (0.,2.),   # right boundary height from barrier level
-    (0.,1.),   # left-middle height as a fraction of barrier-boundary gap
-    (0.,1.),   # right-middle height as a fraction of barrier-boundary gap
-    (-0.01, 0.01), # transport barrier centre
-    (0.05, 0.4),   # transport barrier height
-    (0.002, 0.04), # transport barrier width
-    (1e-3, 0.05),  # radius gap between left-midpoint and transport barrier
-    (1e-3, 0.05),  # radius gap between right-midpoint and transport barrier
+    'D_boundary_left'  : (0.,2.),   # left boundary height from barrier level
+    'D_boundary_right' : (0.,2.),   # right boundary height from barrier level
+    'D_frac_left'      : (0.,1.),   # left-middle height as a fraction of barrier-boundary gap
+    'D_frac_right'     : (0.,1.),   # right-middle height as a fraction of barrier-boundary gap
+    'D_barrier_centre' : (-0.01, 0.01), # transport barrier centre
+    'D_barrier_height' : (0.05, 0.4),   # transport barrier height
+    'D_barrier_width'  : (0.002, 0.04), # transport barrier width
+    'D_gap_left'       : (1e-3, 0.05),  # radius gap between left-midpoint and transport barrier
+    'D_gap_right'      : (1e-3, 0.05),  # radius gap between right-midpoint and transport barrier
 
     # Divertor transport boundaries
-    (0.1,50.0),   # radial particle diffusion
-    (0.1,50.0),   # radial heat diffusion
-]
+    'D_div'   : (0.1,50.0),   # radial particle diffusion
+    'chi_div' : (0.1,50.0)    # radial heat diffusion
+}
 
-# The 'fixed_parameter_values' list allows a sub-set of the parameters to be fixed at
-# particular values, thereby removing them from the optimisation problem.
+# The 'fixed_parameter_values' dictionary allows a sub-set of the parameters to be
+# fixed at particular values, thereby removing them from the optimisation problem.
 
-# If the value in the list is set to 'None', that parameter will be optimised as normal.
+# If the value in the dictionary is set to 'None', that parameter will be optimised as normal.
 # If any value other than 'None' is given, the parameter will be fixed and the given value
 # will be used in running SOLPS.
 
-fixed_parameter_values = [
-    # Chi-profile parameters
-    None,   # left boundary height from barrier level
-    None,   # right boundary height from barrier level
-    None,   # left-middle height as a fraction of barrier-boundary gap
-    None,   # right-middle height as a fraction of barrier-boundary gap
-    None,   # transport barrier centre
-    None,   # transport barrier height
-    None,   # transport barrier width
-    None,   # radius gap between left-midpoint and transport barrier
-    None,   # radius gap between right-midpoint and transport barrier
+fixed_parameter_values = {
+    # Chi-profile parameter boundaries
+    'chi_boundary_left'  : None,   # left boundary height from barrier level
+    'chi_boundary_right' : None,   # right boundary height from barrier level
+    'chi_frac_left'      : None,   # left-middle height as a fraction of barrier-boundary gap
+    'chi_frac_right'     : None,   # right-middle height as a fraction of barrier-boundary gap
+    'chi_barrier_centre' : None,   # transport barrier centre
+    'chi_barrier_height' : None,   # transport barrier height
+    'chi_barrier_width'  : None,   # transport barrier width
+    'chi_gap_left'       : None,   # radius gap between left-midpoint and transport barrier
+    'chi_gap_right'      : None,   # radius gap between right-midpoint and transport barrier
 
-    # D-profile parameters
-    None,   # left boundary height from barrier level
-    None,   # right boundary height from barrier level
-    None,   # left-middle height as a fraction of barrier-boundary gap
-    None,   # right-middle height as a fraction of barrier-boundary gap
-    None,   # transport barrier centre
-    None,   # transport barrier height
-    None,   # transport barrier width
-    None,   # radius gap between left-midpoint and transport barrier
-    None,   # radius gap between right-midpoint and transport barrier
+    # D-profile parameter boundaries
+    'D_boundary_left'  : None,   # left boundary height from barrier level
+    'D_boundary_right' : None,   # right boundary height from barrier level
+    'D_frac_left'      : None,   # left-middle height as a fraction of barrier-boundary gap
+    'D_frac_right'     : None,   # right-middle height as a fraction of barrier-boundary gap
+    'D_barrier_centre' : None,   # transport barrier centre
+    'D_barrier_height' : None,   # transport barrier height
+    'D_barrier_width'  : None,   # transport barrier width
+    'D_gap_left'       : None,   # radius gap between left-midpoint and transport barrier
+    'D_gap_right'      : None,   # radius gap between right-midpoint and transport barrier
 
-    # Divertor transport parameters
-    None,   # radial particle diffusion
-    None,   # radial heat diffusion
-]
+    # Divertor transport boundaries
+    'D_div'   : None,   # radial particle diffusion
+    'chi_div' : None    # radial heat diffusion
+}

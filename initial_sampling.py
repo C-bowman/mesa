@@ -1,5 +1,4 @@
 
-from numpy import array
 from numpy.random import random
 from pandas import DataFrame, read_hdf
 
@@ -10,9 +9,14 @@ import logging
 
 from profile_models import linear_transport_profile, profile_radius_axis
 from solps_interface import run_solps, evaluate_log_posterior, reset_solps
+from parameter_sets import conductivity_profile, diffusivity_profile
 
 def hypercube_sample(bounds):
     return [ b[0] + (b[1]-b[0])*random() for b in bounds ]
+
+def uniform_sample(bounds):
+    return bounds[0] + (bounds[1]-bounds[0])*random()
+
 
 # check the validity of the input file and return its contents
 settings = parse_inputs(argv)
@@ -45,28 +49,21 @@ fixed_parameter_values = settings['fixed_parameter_values']
 optimisation_bounds = settings['optimisation_bounds']
 initial_sample_count = settings['initial_sample_count']
 
-
-
-
-
-# build the indices for the varied vs fixed parameters:
-varied_inds  = array([ i for i,v in enumerate(fixed_parameter_values) if v is None])
-fixed_inds   = array([ i for i,v in enumerate(fixed_parameter_values) if v is not None])
-fixed_values = array([ v for i,v in enumerate(fixed_parameter_values) if v is not None])
+all_parameters = [key for key in fixed_parameter_values.keys()]
+free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
+fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
 
 
 # first check if the training data file exists already, or needs to be created
 if not isfile(output_directory + training_data_file):
     # define what columns will be in the dataframe
     cols = ['iteration',
-            'conductivity_parameters',
-            'diffusivity_parameters',
-            'div_parameters',
             'gauss_logprob',
             'cauchy_logprob',
             'prediction_mean',
             'prediction_error',
-            'convergence_metric' ]
+            'convergence_metric',
+            *all_parameters]
 
     # create the empty dataframe to store the training data and save it to HDF
     df = DataFrame(columns=cols)
@@ -89,28 +86,35 @@ while True:
     # break the loop if we've hit the desired number of initial samples
     if i > initial_sample_count: break
 
-    # sample new evaluation point
-    new_parameters = array(hypercube_sample(optimisation_bounds))
+    # create the dictionary for this iteration
+    row_dict = {}
 
-    # if any of the parameters have been fixed, then insert those values
-    if len(fixed_values) > 0:
-        new_parameters[fixed_inds] = fixed_values
+    # add values for all the fixed parameters
+    for key in fixed_parameters:
+        row_dict[key] = fixed_parameter_values[key]
+
+    # sample values for all the free parameters
+    for key in free_parameters:
+        row_dict[key] = uniform_sample(optimisation_bounds[key])
 
     # produce transport profiles defined by new point
     radius = profile_radius_axis()
 
-    chi = linear_transport_profile(radius, new_parameters[0:9])
-    D = linear_transport_profile(radius, new_parameters[9:18])
-    dna = new_parameters[18]
-    hc  = new_parameters[19]
+    chi_params = [row_dict[k] for k in conductivity_profile]
+    chi = linear_transport_profile(radius, chi_params)
+
+    D_params = [row_dict[k] for k in diffusivity_profile]
+    D = linear_transport_profile(radius, D_params)
+    dna = row_dict['D_div']
+    hc  = row_dict['chi_div']
     
     logging.info('--- Starting iteration '+str(i)+' ---')
     logging.info('New chi parameters:')
-    logging.info(new_parameters[0:9])
+    logging.info(chi_params)
     logging.info('New D parameters:')
-    logging.info(new_parameters[9:18])
+    logging.info(D_params)
     logging.info('Divertor parameters:')
-    logging.info(new_parameters[18:20])
+    logging.info([dna, hc])
 
     # Run SOLPS for the new point
     run_status = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc,
@@ -130,17 +134,12 @@ while True:
                                                            diagnostic_data_observables = diagnostic_data_observables)
 
     # build a new row for the dataframe
-    row_dict = {
-        'iteration' : i,
-        'conductivity_parameters' : new_parameters[0:9],
-        'diffusivity_parameters' : new_parameters[9:18],
-        'div_parameters' : new_parameters[18:20],
-        'gauss_logprob' : gauss_logprob,
-        'cauchy_logprob' : cauchy_logprob,
-        'prediction_mean' : None,
-        'prediction_error' : None,
-        'convergence_metric' : None
-    }
+    row_dict['iteration'] = i
+    row_dict['gauss_logprob'] = gauss_logprob
+    row_dict['cauchy_logprob'] = cauchy_logprob
+    row_dict['prediction_mean'] = None
+    row_dict['prediction_error'] = None
+    row_dict['convergence_metric'] = None
 
     df.loc[i] = row_dict # add the new row
     df.to_hdf(output_directory + training_data_file, key='training', mode='w') # save the data
