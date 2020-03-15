@@ -80,9 +80,9 @@ while True:
     logging.info('--- Starting iteration '+str(i)+' ---')
 
     # extract the training data
-    if error_model == 'Gaussian':
+    if error_model.lower() == 'gaussian':
         log_posterior = df['gauss_logprob'].to_numpy().copy()
-    elif error_model == 'Cauchy':
+    elif error_model.lower() == 'cauchy':
         log_posterior = df['cauchy_logprob'].to_numpy().copy()
         
     parameters = []
