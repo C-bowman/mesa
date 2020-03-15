@@ -163,7 +163,7 @@ while True:
         row_dict[key] = val
 
     # check to see if the grid-transformed new point is already in the evaluated set
-    if grid_transform(bounds_transform(new_parameters, optimisation_bounds)) in grid_set:
+    if grid_transform(new_point) in grid_set:
         raise ValueError(
             """
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
