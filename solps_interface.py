@@ -533,7 +533,7 @@ def cauchy_likelihood(data, errors, prediction):
 
 
 def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,
-                           diagnostic_data_observables = None):
+                           diagnostic_data_observables = None, diagnostic_data_errors = None):
     """
     :param int iteration: \
         iteration number of the solps run for which the posterior log-probability is calculated.
@@ -582,7 +582,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     cauchy_logprobs = []
 
     # Read the experimental data
-    for filename, observables in zip(diagnostic_data_files, diagnostic_data_observables):
+    for filename, observables, errors in zip(diagnostic_data_files, diagnostic_data_observables, diagnostic_data_errors):
 
         data = read_hdf(directory+filename+'.h5','data',mode='r')
         data_validindx = isfinite(data['r'])
@@ -604,7 +604,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
         if data_type == 'line':
             raise Exception('Measurement type not yet supported.')
 
-        for tag in observables:
+        for tag, error_tag in zip(observables, errors):
             if tag == 'ne':
                 predicted_data = geomat.dot(solps_ne_cell)
 
@@ -628,7 +628,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
             geo_validindx = where(sum(geomat,axis=1) > 0.99)[0]
 
             expt_data = data[tag].values[data_validindx][geo_validindx]
-            expt_err = data[tag].values[data_validindx][geo_validindx]
+            expt_err = data[error_tag].values[data_validindx][geo_validindx]
             predicted_data = predicted_data[geo_validindx]
 
             # get indices where both the data and the errors are finite
