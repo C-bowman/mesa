@@ -585,15 +585,12 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     for filename, observables, errors in zip(diagnostic_data_files, diagnostic_data_observables, diagnostic_data_errors):
 
         data = read_hdf(directory+filename+'.h5','data',mode='r')
-        data_validindx = isfinite(data['r'])
 
         # Read the geometry information
-        data_r = data['r'].values[data_validindx]
-        data_z = data['z'].values[data_validindx]
-        sample_r = data['sample_r'].values
-        sample_z = data['sample_z'].values
-        sample_n = data['sample_n'].values
-        data_type = data['measurement_type'].values[0]
+        sample_r = data['sample_r'].to_numpy()
+        sample_z = data['sample_z'].to_numpy()
+        sample_n = data['sample_n'].to_numpy()
+        data_type = data['measurement_type'].to_numpy()[0]
 
         # Check if a geometry matrix has been calculated
 
@@ -623,19 +620,22 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
             if tag == 'prad':
                 predicted_data = geomat.dot(solps_prad_cell)
 
-            # Filter the projected data so that only measurements made within the SOLPS grid
-            # are retained
-            geo_validindx = where(sum(geomat,axis=1) > 0.99)[0]
+            # Filter the data and predictions
+            finite_data = isfinite(data[tag].to_numpy())
+            finite_errs = isfinite(data[error_tag].to_numpy())
+            finite_radius = isfinite(data['r'].to_numpy())
+            valid_geometry = sum(geomat, axis = 1) > 0.99
 
-            expt_data = data[tag].values[data_validindx][geo_validindx]
-            expt_err = data[error_tag].values[data_validindx][geo_validindx]
-            predicted_data = predicted_data[geo_validindx]
+            valid_indices = where( finite_data & finite_errs & finite_radius & valid_geometry )
 
-            # get indices where both the data and the errors are finite
-            finite = where(isfinite(expt_data) & isfinite(expt_err))
+            # extract the valid data and predictions
+            measurements = data[tag].to_numpy()[valid_indices]
+            errors = data[error_tag].to_numpy()[valid_indices]
+            predictions = predicted_data[valid_indices]
 
-            cauchy_logprobs.append( cauchy_likelihood( expt_data[finite], expt_err[finite], predicted_data[finite] ) )
-            gauss_logprobs.append( gaussian_likelihood( expt_data[finite], expt_err[finite], predicted_data[finite] ) )
+            # calculate the likelihoods
+            cauchy_logprobs.append( cauchy_likelihood( measurements, errors, predictions ) )
+            gauss_logprobs.append( gaussian_likelihood( measurements, errors, predictions ) )
 
     # calculate the log-posterior probability
     total_cauchy_logprob = sum(cauchy_logprobs)
