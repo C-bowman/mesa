@@ -564,7 +564,8 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
 
     for i in arange(solps_data['vertex_x'].shape[1]):
         for j in arange(solps_data['vertex_x'].shape[2]):
-            cells.append(mplPath.Path([[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]],[solps_data['vertex_x'][1,i,j],solps_data['vertex_y'][1,i,j]],[solps_data['vertex_x'][0,i,j],solps_data['vertex_y'][0,i,j]],[solps_data['vertex_x'][2,i,j],solps_data['vertex_y'][2,i,j]],[solps_data['vertex_x'][3,i,j],solps_data['vertex_y'][3,i,j]]]))
+            cell_boundary = [ [ solps_data['vertex_x'][k,i,j], solps_data['vertex_y'][k,i,j] ] for k in (3,1,0,2,3) ]
+            cells.append(mplPath.Path(cell_boundary))
             solps_ne_cell.append(solps_data['ne'][i,j])
             solps_te_cell.append(solps_data['te'][i,j])
             solps_ti_cell.append(solps_data['ti'][i,j])
