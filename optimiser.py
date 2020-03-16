@@ -38,6 +38,7 @@ output_directory = settings['solps_output_directory']
 training_data_file = settings['training_data_file']
 diagnostic_data_files = settings['diagnostic_data_files']
 diagnostic_data_observables = settings['diagnostic_data_observables']
+diagnostic_data_errors = settings['diagnostic_data_errors']
 
 # SOLPS settings
 solps_n_species = settings['solps_n_species']
@@ -210,7 +211,8 @@ while True:
     # evaluate the chi-squared
     gauss_logprob, cauchy_logprob = evaluate_log_posterior(iteration = i, directory = output_directory,
                                                            diagnostic_data_files = diagnostic_data_files,
-                                                           diagnostic_data_observables = diagnostic_data_observables)
+                                                           diagnostic_data_observables = diagnostic_data_observables,
+                                                           diagnostic_data_errors = diagnostic_data_errors)
 
     # build a new row for the dataframe
     row_dict['iteration'] = i
