@@ -577,6 +577,9 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     solps_jsat_cell = array(solps_jsat_cell)
     solps_prad_cell = array(solps_prad_cell)
 
+    if type(solps_ne_cell) == type(solps_data['ne']):
+        print('\n ### FLATTEN TEST:', (solps_ne_cell == solps_data['ne'].flatten()).all())
+
     # storage for the log-probabilities
     gauss_logprobs = []
     cauchy_logprobs = []
