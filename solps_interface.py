@@ -556,30 +556,16 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
 
     # Create an array of SOLPS cells
     cells = []
-    solps_ne_cell = []
-    solps_te_cell = []
-    solps_ti_cell = []
-    solps_jsat_cell = []
-    solps_prad_cell = []
-
     for i in arange(solps_data['vertex_x'].shape[1]):
         for j in arange(solps_data['vertex_x'].shape[2]):
             cell_boundary = [ [ solps_data['vertex_x'][k,i,j], solps_data['vertex_y'][k,i,j] ] for k in (3,1,0,2,3) ]
             cells.append(mplPath.Path(cell_boundary))
-            solps_ne_cell.append(solps_data['ne'][i,j])
-            solps_te_cell.append(solps_data['te'][i,j])
-            solps_ti_cell.append(solps_data['ti'][i,j])
-            solps_jsat_cell.append(solps_data['jsat'][i,j])
-            solps_prad_cell.append(solps_data['prad'][i,j])
 
-    solps_ne_cell = array(solps_ne_cell)
-    solps_te_cell = array(solps_te_cell)
-    solps_ti_cell = array(solps_ti_cell)
-    solps_jsat_cell = array(solps_jsat_cell)
-    solps_prad_cell = array(solps_prad_cell)
-
-    if type(solps_ne_cell) == type(solps_data['ne']):
-        print('\n ### FLATTEN TEST:', (solps_ne_cell == solps_data['ne'].flatten()).all())
+    solps_ne_cell = solps_data['ne'].flatten()
+    solps_te_cell = solps_data['te'].flatten()
+    solps_ti_cell = solps_data['ti'].flatten()
+    solps_jsat_cell = solps_data['jsat'].flatten()
+    solps_prad_cell = solps_data['prad'].flatten()
 
     # storage for the log-probabilities
     gauss_logprobs = []
@@ -624,17 +610,24 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
             if tag == 'prad':
                 predicted_data = geomat.dot(solps_prad_cell)
 
-            # Filter the data and predictions
-            finite_data = isfinite(data[tag].to_numpy())
-            finite_errs = isfinite(data[error_tag].to_numpy())
-            finite_radius = isfinite(data['r'].to_numpy())
+            # extract the data
+            measurements = data[tag].to_numpy().copy()
+            errors = data[error_tag].to_numpy().copy()
+
+            # the data have some padding in them which we need to remove first
+            data_inds = where( isfinite(data['r'].to_numpy()) )
+            measurements = measurements[data_inds]
+            errors = errors[data_inds]
+
+            # now filter out non-finite data and measurements outside the grid
+            finite_data = isfinite(measurements)
+            finite_errs = isfinite(errors)
             valid_geometry = sum(geomat, axis = 1) > 0.99
 
-            valid_indices = where( finite_data & finite_errs & finite_radius & valid_geometry )
+            valid_indices = where( finite_data & finite_errs & valid_geometry )
 
-            # extract the valid data and predictions
-            measurements = data[tag].to_numpy()[valid_indices]
-            errors = data[error_tag].to_numpy()[valid_indices]
+            measurements = measurements[valid_indices]
+            errors = errors[valid_indices]
             predictions = predicted_data[valid_indices]
 
             # calculate the likelihoods
