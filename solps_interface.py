@@ -354,7 +354,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     # Run this when SOLPS has finished
     # build the path of the solps output file
     output_path = run_directory + 'balance.nc'
-    new_output_path = output_directory + 'solps_run_{}.nc'.format(iteration)
+    new_output_path = output_directory + 'solps_run_{}.nc'.format(int(iteration))
 
     if exists(output_path):
         logging.info('[solps_interface] SOLPS run completed successfully.')
@@ -370,7 +370,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
 
         # Then copy the SOLPS input files to the solps_output directory
         output_path = run_directory + 'input_files.zip'
-        new_output_path = output_directory + 'solps_input_files_{}.zip'.format(iteration)
+        new_output_path = output_directory + 'solps_input_files_{}.zip'.format(int(iteration))
         copyinputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
         copyinputfiles.communicate()
 
@@ -549,7 +549,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     """
 
     # build the path of the solps output file
-    solps_path = directory + 'solps_run_{}.nc'.format(iteration)
+    solps_path = directory + 'solps_run_{}.nc'.format(int(iteration))
 
     # read the SOLPS data
     solps_data = read_solps_data(solps_path)
