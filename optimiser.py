@@ -1,5 +1,5 @@
 
-from numpy import array, mean
+from numpy import array
 from pandas import read_hdf
 from sys import argv
 import logging
@@ -97,10 +97,6 @@ while True:
     # build the set of grid-transformed points
     grid_set = set( grid_transform(p) for p in normalised_parameters )
 
-    # if requested, normalise the training data to have zero mean
-    data_mean = mean(log_posterior[:initial_sample_count])
-    log_posterior -= data_mean
-
     # construct the GP
     GP = GpRegressor(normalised_parameters, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
     bfgs_hps = GP.multistart_bfgs(starts=50)
@@ -174,9 +170,6 @@ while True:
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             """
         )
-
-    # add the mean back to the prediction
-    mu_lp += data_mean
 
     # produce transport profiles defined by new point
     radius = profile_radius_axis()

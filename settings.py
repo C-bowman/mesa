@@ -73,7 +73,7 @@ covariance_kernel = SquaredExponential
 
 # Choose whether the errors on the experimental data are treated either as
 # Gaussian or Cauchy:
-error_model = 'gaussian'
+error_model = 'cauchy'
 
 
 
@@ -85,7 +85,7 @@ error_model = 'gaussian'
 
 # Number of random-search evaluations which will be used to create an
 # initial set of training data for the GP-optimisation
-initial_sample_count = 25
+initial_sample_count = 30
 
 # Maximum number of iterations after which the optimisation terminates
 max_iterations = 200
