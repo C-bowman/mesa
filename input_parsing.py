@@ -11,6 +11,7 @@ input_variables = [
     'training_data_file',
     'diagnostic_data_files',
     'diagnostic_data_observables',
+    'diagnostic_data_errors',
 # SOLPS settings
     'solps_n_timesteps',
     'solps_dt',
