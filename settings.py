@@ -72,7 +72,7 @@ from inference.gp_tools import SquaredExponential
 covariance_kernel = SquaredExponential
 
 # Choose whether the errors on the experimental data are treated either as
-# Gaussian or Cauchy:
+# Gaussian, Cauchy or Laplace:
 error_model = 'cauchy'
 
 

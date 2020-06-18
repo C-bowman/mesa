@@ -85,7 +85,9 @@ while True:
         log_posterior = df['gauss_logprob'].to_numpy().copy()
     elif error_model.lower() == 'cauchy':
         log_posterior = df['cauchy_logprob'].to_numpy().copy()
-        
+    elif error_model.lower() == 'laplace':
+        log_posterior = df['laplace_logprob'].to_numpy().copy()
+
     parameters = []
     for tup in zip(*[df[p] for p in free_parameters]):
         parameters.append( array(tup) )
@@ -202,15 +204,18 @@ while True:
         continue
 
     # evaluate the chi-squared
-    gauss_logprob, cauchy_logprob = evaluate_log_posterior(iteration = i, directory = output_directory,
+    logprobs = evaluate_log_posterior(iteration = i, directory = output_directory,
                                                            diagnostic_data_files = diagnostic_data_files,
                                                            diagnostic_data_observables = diagnostic_data_observables,
                                                            diagnostic_data_errors = diagnostic_data_errors)
+
+    gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
 
     # build a new row for the dataframe
     row_dict['iteration'] = i
     row_dict['gauss_logprob'] = gauss_logprob
     row_dict['cauchy_logprob'] = cauchy_logprob
+    row_dict['laplace_logprob'] = laplace_logprob
     row_dict['prediction_mean'] = mu_lp,
     row_dict['prediction_error'] = sigma_lp,
     row_dict['convergence_metric'] = convergence

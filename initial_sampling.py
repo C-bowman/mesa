@@ -61,6 +61,7 @@ if not isfile(output_directory + training_data_file):
     cols = ['iteration',
             'gauss_logprob',
             'cauchy_logprob',
+            'laplace_logprob',
             'prediction_mean',
             'prediction_error',
             'convergence_metric',
@@ -130,15 +131,18 @@ while True:
         continue
 
     # evaluate the chi-squared
-    gauss_logprob, cauchy_logprob = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                                           diagnostic_data_files = diagnostic_data_files,
-                                                           diagnostic_data_observables = diagnostic_data_observables,
-                                                           diagnostic_data_errors = diagnostic_data_errors)
+    logprobs = evaluate_log_posterior(iteration = i, directory = output_directory,
+                                      diagnostic_data_files = diagnostic_data_files,
+                                      diagnostic_data_observables = diagnostic_data_observables,
+                                      diagnostic_data_errors = diagnostic_data_errors)
+
+    gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
 
     # build a new row for the dataframe
     row_dict['iteration'] = i
     row_dict['gauss_logprob'] = gauss_logprob
     row_dict['cauchy_logprob'] = cauchy_logprob
+    row_dict['laplace_logprob'] = laplace_logprob
     row_dict['prediction_mean'] = None
     row_dict['prediction_error'] = None
     row_dict['convergence_metric'] = None

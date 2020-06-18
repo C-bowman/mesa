@@ -532,6 +532,12 @@ def cauchy_likelihood(data, errors, prediction):
 
 
 
+def laplace_likelihood(data, errors, prediction):
+    z = (data-prediction)/errors
+    return -abs(z).sum()
+
+
+
 def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,
                            diagnostic_data_observables = None, diagnostic_data_errors = None):
     """
@@ -570,6 +576,7 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     # storage for the log-probabilities
     gauss_logprobs = []
     cauchy_logprobs = []
+    laplace_logprobs = []
 
     # Read the experimental data
     for filename, observables, errors in zip(diagnostic_data_files, diagnostic_data_observables, diagnostic_data_errors):
@@ -633,11 +640,14 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
             # calculate the likelihoods
             cauchy_logprobs.append( cauchy_likelihood( measurements, errors, predictions ) )
             gauss_logprobs.append( gaussian_likelihood( measurements, errors, predictions ) )
+            laplace_logprobs.append( laplace_likelihood( measurements, errors, predictions ) )
+
 
     # calculate the log-posterior probability
     total_cauchy_logprob = sum(cauchy_logprobs)
     total_gauss_logprob = sum(gauss_logprobs)
-    return total_gauss_logprob, total_cauchy_logprob
+    total_laplace_logprob = sum(laplace_logprobs)
+    return total_gauss_logprob, total_cauchy_logprob, total_laplace_logprob
 
 
 
