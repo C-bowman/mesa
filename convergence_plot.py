@@ -21,11 +21,11 @@ error_model = settings['error_model']
 df = read_hdf(output_directory + training_data_file, 'training')
 
 itr = df['iteration']
-if error_model == 'Gaussian':
+if error_model.lower() == 'gaussian':
     LP = df['gauss_logprob'].to_numpy().copy()
-elif error_model == 'Cauchy':
+elif error_model.lower() == 'cauchy':
     LP = df['cauchy_logprob'].to_numpy().copy()
-elif error_model == 'Laplace':
+elif error_model.lower() == 'laplace':
     LP = df['laplace_logprob'].to_numpy().copy()
 
 running_max = maximum.accumulate(LP)
