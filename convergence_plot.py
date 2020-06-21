@@ -25,6 +25,8 @@ if error_model == 'Gaussian':
     LP = df['gauss_logprob'].to_numpy().copy()
 elif error_model == 'Cauchy':
     LP = df['cauchy_logprob'].to_numpy().copy()
+elif error_model == 'Laplace':
+    LP = df['laplace_logprob'].to_numpy().copy()
 
 running_max = maximum.accumulate(LP)
 
