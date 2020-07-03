@@ -1,5 +1,5 @@
 
-from numpy import array
+from numpy import array, log
 from pandas import read_hdf
 from sys import argv
 import logging
@@ -57,9 +57,10 @@ optimisation_bounds = settings['optimisation_bounds']
 acquisition_function = settings['acquisition_function']
 cross_validation = settings['cross_validation']
 error_model = settings['error_model']
-covariance_kernel = settings['covariance_kernel']
+covariance_kernel_class = settings['covariance_kernel']
 trust_region = settings['trust_region']
 trust_region_width = settings['trust_region_width']
+log_scale_bounds = settings['log_scale_bounds']
 
 
 all_parameters = [key for key in fixed_parameter_values.keys()]
@@ -99,7 +100,13 @@ while True:
     # build the set of grid-transformed points
     grid_set = set( grid_transform(p) for p in normalised_parameters )
 
+    # set the covariance kernel parameter bounds
+    amplitude = log(log_posterior.ptp())
+    hyperpar_bounds = [(amplitude-3, amplitude+3)]
+    hyperpar_bounds.extend( [log_scale_bounds for _ in free_parameters] )
+
     # construct the GP
+    covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
     GP = GpRegressor(normalised_parameters, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
     bfgs_hps = GP.multistart_bfgs(starts=50)
 
@@ -123,6 +130,7 @@ while True:
 
 
     # build the GP-optimiser
+    covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
     GPopt = GpOptimiser(normalised_parameters, log_posterior, hyperpars = GP.hyperpars, bounds=search_bounds,
                         cross_val = cross_validation, kernel = covariance_kernel, acquisition=acquisition_function)
 

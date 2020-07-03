@@ -23,6 +23,7 @@ input_variables = [
 # gaussian-process regression settings
     'cross_validation',
     'covariance_kernel',
+    'log_scale_bounds',
     'error_model',
 # optimiser settings
     'initial_sample_count',

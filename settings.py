@@ -71,6 +71,10 @@ cross_validation = False
 from inference.gp_tools import SquaredExponential
 covariance_kernel = SquaredExponential
 
+# Set the lower and upper bounds for the log-scale hyper-parameters
+# of the covariance kernel.
+log_scale_bounds = (-6.0,4.0)
+
 # Choose whether the errors on the experimental data are treated either as
 # Gaussian, Cauchy or Laplace:
 error_model = 'cauchy'
