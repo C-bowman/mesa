@@ -1,4 +1,9 @@
 
+import os
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+
 from numpy import array, log
 from pandas import read_hdf
 from sys import argv
@@ -108,7 +113,7 @@ while True:
     # construct the GP
     covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
     GP = GpRegressor(normalised_parameters, log_posterior, cross_val = cross_validation, kernel = covariance_kernel)
-    bfgs_hps = GP.multistart_bfgs(starts=50)
+    bfgs_hps = GP.multistart_bfgs(starts=300, n_processes=solps_n_proc)
 
     if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
         mode = bfgs_hps
