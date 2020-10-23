@@ -4,7 +4,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 
-from numpy import array, log, vstack
+from numpy import array
 from pandas import read_hdf
 from sys import argv
 import logging
@@ -34,6 +34,7 @@ settings = parse_inputs(argv)
 
 # Check other data files are present
 check_dependencies(settings)
+
 
 # set-up the log file
 logger_setup(argv)
