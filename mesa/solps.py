@@ -11,16 +11,21 @@ from copy import deepcopy
 import matplotlib.path as mplPath
 from pandas import read_hdf
 
-def write_solps_transport_inputfile(filename,
-                                    n_species,
-                                    grid_dperp,values_dperp,
-                                    grid_chieperp,values_chieperp,
-                                    grid_chiiperp,values_chiiperp,
-                                    set_ana_visc_dperp=True,
-                                    no_pflux=True,
-                                    no_div=False):
 
-    '''
+def write_solps_transport_inputfile(
+    filename,
+    n_species,
+    grid_dperp,
+    values_dperp,
+    grid_chieperp,
+    values_chieperp,
+    grid_chiiperp,
+    values_chiiperp,
+    set_ana_visc_dperp=True,
+    no_pflux=True,
+    no_div=False
+):
+    """
     Writes a b2.transport.inputfile to prepare a SOLPS-ITER run.
     Inputs:
         - filename: name of file to output
@@ -34,7 +39,7 @@ def write_solps_transport_inputfile(filename,
         - set_ana_visc_dperp: if true, sets profile of anomalous viscosity to be equal to the anomalous particle diffusion.
         - no_pflux: if true, anomalous transport profiles do not apply in the private flux region(s)
         - no_div: if true, anomalous transport profiles do not apply in the divertor(s)
-    '''
+    """
 
     # Define list to write the file lines to
     sout = []
@@ -125,18 +130,20 @@ def write_solps_transport_inputfile(filename,
 
 
 
-def write_solps_transport_paramters(filename,
-                                    n_species,
-                                    dna,
-                                    dpa,
-                                    vla,
-                                    vsa,
-                                    hci,
-                                    hce,
-                                    sig,
-                                    alf):
+def write_solps_transport_paramters(
+    filename,
+    n_species,
+    dna,
+    dpa,
+    vla,
+    vsa,
+    hci,
+    hce,
+    sig,
+    alf
+):
 
-    '''
+    """
     Writes a b2.transport.inputfile to prepare a SOLPS-ITER run.
     Inputs:
         - filename: name of file to output
@@ -149,7 +156,7 @@ def write_solps_transport_paramters(filename,
         - hce: anomalous radial electron heat diffusivity
         - sig: anomalous current conductivity
         - alf: anomalous thermo-electric current
-    '''
+    """
 
     # Prepare the file contents in a list
     sout = []
@@ -174,16 +181,17 @@ def write_solps_transport_paramters(filename,
 
 
 
-def write_solps_b2mn_dat(filename,
-                         n_timestep,
-                         d_timestep,
-                         cflme=0.3, # Multiplier to the electron heat flux limit
-                         cflmi=1.0, # Multiplier to the ion heat flux limit
-                         cflmv=0.5, # Multiplier to the viscous heat flux limit
-                         cflal=0.5, # Multilier to the thermo-electric coefficient flux limit
-                         cflab=0.5, #  Multiplier to the friction force flux limit
-                         label='Gaussian process test case'
-                         ):
+def write_solps_b2mn_dat(
+    filename,
+    n_timestep,
+    d_timestep,
+    cflme=0.3,  # Multiplier to the electron heat flux limit
+    cflmi=1.0,  # Multiplier to the ion heat flux limit
+    cflmv=0.5,  # Multiplier to the viscous heat flux limit
+    cflal=0.5,  # Multilier to the thermo-electric coefficient flux limit
+    cflab=0.5,  #  Multiplier to the friction force flux limit
+    label='Gaussian process test case'
+):
 
     sout = []
 
@@ -234,10 +242,24 @@ def write_solps_b2mn_dat(filename,
 
 
 
-def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None, 
-              dna = 1.0, hci = 1.0, hce = 1.0, n_species = 1,
-              timeout_hours = 10, run_directory = None, set_div_transport = False,
-              output_directory = None, solps_n_timesteps = 1000, solps_dt = 1.0E-5, n_proc = 1):
+def run_solps(
+    chi = None,
+    chi_r = None,
+    D = None,
+    D_r = None,
+    iteration = None,
+    dna = 1.0,
+    hci = 1.0,
+    hce = 1.0,
+    n_species = 1,
+    timeout_hours = 10,
+    run_directory = None,
+    set_div_transport = False,
+    output_directory = None,
+    solps_n_timesteps = 1000,
+    solps_dt = 1.0E-5,
+    n_proc = 1
+):
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
 
@@ -263,35 +285,41 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
     """
 
     # Write the SOLPS input files
-    write_solps_b2mn_dat(run_directory+'b2mn.dat',
-                         solps_n_timesteps,      # Number of timesteps
-                         solps_dt,               # Timestep (s)
-                         cflme=0.3,              # Multiplier to the electron heat flux limit
-                         cflmi=1.0,              # Multiplier to the ion heat flux limit
-                         cflmv=0.5,              # Multiplier to the viscous heat flux limit
-                         cflal=0.5,              # Multilier to the thermo-electric coefficient flux limit
-                         cflab=0.5,              #  Multiplier to the friction force flux limit
-                         label='Gaussian process test case')
+    write_solps_b2mn_dat(
+        run_directory+'b2mn.dat',
+        solps_n_timesteps,  # Number of timesteps
+        solps_dt,           # Timestep (s)
+        cflme=0.3,          # Multiplier to the electron heat flux limit
+        cflmi=1.0,          # Multiplier to the ion heat flux limit
+        cflmv=0.5,          # Multiplier to the viscous heat flux limit
+        cflal=0.5,          # Multilier to the thermo-electric coefficient flux limit
+        cflab=0.5,          #  Multiplier to the friction force flux limit
+        label='Gaussian process test case'
+    )
 
-    write_solps_transport_paramters(run_directory+'b2.transport.parameters',
-                                    n_species, # Number of species - should be in settings!
-                                    dna,
-                                    0,
-                                    0,
-                                    1.0,
-                                    hci,
-                                    hce,
-                                    0,
-                                    0)
+    write_solps_transport_paramters(
+        run_directory+'b2.transport.parameters',
+        n_species,  # Number of species - should be in settings!
+        dna,
+        0,
+        0,
+        1.0,
+        hci,
+        hce,
+        0,
+        0
+    )
 
-    write_solps_transport_inputfile(run_directory+'b2.transport.inputfile',
-                                    n_species,
-                                    D_r,D,
-                                    chi_r,chi,
-                                    chi_r,chi,
-                                    set_ana_visc_dperp=True,
-                                    no_pflux=True,
-                                    no_div=set_div_transport)
+    write_solps_transport_inputfile(
+        run_directory+'b2.transport.inputfile',
+        n_species,
+        D_r,D,
+        chi_r,chi,
+        chi_r,chi,
+        set_ana_visc_dperp=True,
+        no_pflux=True,
+        no_div=set_div_transport
+    )
 
     # Go to the SOLPS run directory to prepare execution
     orig_dir = getcwd()
@@ -347,7 +375,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
 
         sleep(30) # wait for 30 seconds between checks
 
-        test = subprocess.Popen('squeue -u '+username,stdout=subprocess.PIPE,shell=True)
+        test = subprocess.Popen('squeue -u '+username, stdout=subprocess.PIPE, shell=True)
         jobqueue = test.communicate()[0]
         jobpos = str(jobqueue).find(jobstr)
 
@@ -384,6 +412,7 @@ def run_solps(chi = None, chi_r = None, D = None, D_r = None, iteration = None,
 
         return False
 
+
 def reset_solps(run_directory, ref_directory):
     """
     Clears the contents of a SOLPS run directory and replaces it with the files from a reference
@@ -405,6 +434,7 @@ def reset_solps(run_directory, ref_directory):
     jobqueue = test.communicate()[0]
     
     chdir(orig_dir)
+
 
 def cancel_solps(jobstr):
     """
@@ -450,8 +480,8 @@ def read_solps_data(filename = None):
     jsat = el_ch*solps_ne*sqrt(el_ch*(solps_te+solps_ti)/(me+mi))
 
     # Estimate the positions of the the separatrix and outer mid-plane
-    sep = deepcopy(f.variables['jsep'].data)+2 # Separatrix ring
-    omp = deepcopy(f.variables['jxa'].data)+2 # Outer mid-plane cell index
+    sep = deepcopy(f.variables['jsep'].data)+2  # Separatrix ring
+    omp = deepcopy(f.variables['jxa'].data)+2  # Outer mid-plane cell index
 
     # Close the file
     f.close()
@@ -483,7 +513,8 @@ def read_solps_data(filename = None):
     
     return output
 
-def calc_point_geo_matrix(samples_r,samples_z,samples_n,cells):
+
+def calc_point_geo_matrix(samples_r, samples_z, samples_n, cells):
     '''
     Calculates a geometry matrix for pointwise measurements.  Each measurement
     is assumed to comprise of a point cloud of coordinates (r,z).  The position
@@ -519,11 +550,9 @@ def calc_point_geo_matrix(samples_r,samples_z,samples_n,cells):
     return geomat
 
 
-
 def gaussian_likelihood(data, errors, prediction):
     z = (data-prediction)/errors
     return -0.5*(z**2).sum()
-
 
 
 def cauchy_likelihood(data, errors, prediction):
@@ -531,11 +560,9 @@ def cauchy_likelihood(data, errors, prediction):
     return -log(1 + z**2).sum()
 
 
-
 def laplace_likelihood(data, errors, prediction):
     z = (data-prediction)/errors
     return -abs(z).sum()
-
 
 
 def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,

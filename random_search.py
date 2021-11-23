@@ -100,10 +100,10 @@ while True:
 
     # convert the data to the normalised coordinates:
     free_parameter_bounds = [optimisation_bounds[k] for k in free_parameters]
-    normalised_parameters = [bounds_transform(p,free_parameter_bounds) for p in parameters]
+    normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
 
     # build the set of grid-transformed points
-    grid_set = set( grid_transform(p) for p in normalised_parameters )
+    grid_set = {grid_transform(p) for p in normalised_parameters}
 
     # If a trust-region approach is being used, limit the search area
     # to a region around the current maximum
@@ -157,10 +157,24 @@ while True:
     logging.info([dna, hc])
 
     # Run SOLPS for the new point
-    run_status = run_solps(chi=chi, chi_r=radius, D=D, D_r=radius, iteration = i, dna = dna, hci = hc, hce = hc,
-                           run_directory = run_directory, output_directory = output_directory,
-                           solps_n_timesteps = solps_n_timesteps, solps_dt = solps_dt, timeout_hours = solps_timeout_hours,
-                           n_proc = solps_n_proc, n_species = solps_n_species, set_div_transport = set_divertor_transport)
+    run_status = run_solps(
+        chi=chi,
+        chi_r=radius,
+        D=D,
+        D_r=radius,
+        iteration=i,
+        dna=dna,
+        hci=hc,
+        hce=hc,
+        run_directory=run_directory,
+        output_directory=output_directory,
+        solps_n_timesteps=solps_n_timesteps,
+        solps_dt=solps_dt,
+        timeout_hours=solps_timeout_hours,
+        n_proc=solps_n_proc,
+        n_species=solps_n_species,
+        set_div_transport=set_divertor_transport
+    )
 
     if run_status == False:
         logging.info('[optimiser] Restoring SOLPS run directory from reference.')
@@ -169,10 +183,13 @@ while True:
         continue
 
     # evaluate the chi-squared
-    logprobs = evaluate_log_posterior(iteration = i, directory = output_directory,
-                                                           diagnostic_data_files = diagnostic_data_files,
-                                                           diagnostic_data_observables = diagnostic_data_observables,
-                                                           diagnostic_data_errors = diagnostic_data_errors)
+    logprobs = evaluate_log_posterior(
+        iteration=i,
+        directory=output_directory,
+        diagnostic_data_files=diagnostic_data_files,
+        diagnostic_data_observables=diagnostic_data_observables,
+        diagnostic_data_errors=diagnostic_data_errors
+    )
 
     gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
 

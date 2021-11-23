@@ -34,14 +34,16 @@ fixed_parameters = [key for key, value in fixed_parameter_values.items() if valu
 orig_training_data = pd.read_hdf(solps_dir + orig_training_file)
 
 # Create the new training file
-cols = ['iteration',
-        'gauss_logprob',
-        'cauchy_logprob',
-        'laplace_logprob',
-        'prediction_mean',
-        'prediction_error',
-        'convergence_metric',
-         *all_parameters]
+cols = [
+    'iteration',
+    'gauss_logprob',
+    'cauchy_logprob',
+    'laplace_logprob',
+    'prediction_mean',
+    'prediction_error',
+    'convergence_metric',
+    *all_parameters
+]
 
 # create the empty dataframe to store the training data and save it to HDF
 df = pd.DataFrame(columns=cols)
@@ -63,10 +65,13 @@ for itr in np.arange(len(orig_training_data)):
         
     df = pd.read_hdf(output_file, 'training')
     
-    logprobs = evaluate_log_posterior(iteration = iteration, directory = solps_dir,
-                                      diagnostic_data_files = diagnostic_data_files,
-                                      diagnostic_data_observables = diagnostic_data_observables,
-                                      diagnostic_data_errors = diagnostic_data_errors)
+    logprobs = evaluate_log_posterior(
+        iteration=iteration,
+        directory=solps_dir,
+        diagnostic_data_files=diagnostic_data_files,
+        diagnostic_data_observables=diagnostic_data_observables,
+        diagnostic_data_errors=diagnostic_data_errors
+    )
     
     gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
     
