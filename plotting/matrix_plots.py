@@ -1,5 +1,5 @@
 
-from input_parsing import parse_inputs
+from mesa.parsing import parse_inputs
 from sys import argv
 
 from inference.plotting import matrix_plot

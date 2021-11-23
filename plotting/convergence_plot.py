@@ -2,7 +2,7 @@ from numpy import maximum
 import matplotlib.pyplot as plt
 from pandas import read_hdf
 
-from input_parsing import parse_inputs
+from mesa.parsing import parse_inputs
 from sys import argv
 
 # check the validity of the input file and return its contents

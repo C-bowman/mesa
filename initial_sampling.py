@@ -3,13 +3,13 @@ from numpy.random import random
 from pandas import DataFrame, read_hdf
 
 from os.path import isfile
-from input_parsing import parse_inputs, check_dependencies, logger_setup
+from mesa.parsing import parse_inputs, check_dependencies, logger_setup
 from sys import argv
 import logging
 
-from profile_models import linear_transport_profile, profile_radius_axis
-from solps_interface import run_solps, evaluate_log_posterior, reset_solps
-from parameter_sets import conductivity_profile, diffusivity_profile
+from mesa.models import linear_transport_profile, profile_radius_axis
+from mesa.solps import run_solps, evaluate_log_posterior, reset_solps
+from mesa.parameters import conductivity_profile, diffusivity_profile
 
 def hypercube_sample(bounds):
     return [ b[0] + (b[1]-b[0])*random() for b in bounds ]

@@ -6,8 +6,8 @@ Created on Thu Aug 20 16:34:30 2020
 """
 
 
-from solps_interface import evaluate_log_posterior
-from input_parsing import parse_inputs
+from mesa.solps import evaluate_log_posterior
+from mesa.parsing import parse_inputs
 import pandas as pd
 import numpy as np
 

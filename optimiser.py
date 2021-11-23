@@ -9,10 +9,10 @@ from pandas import read_hdf
 from sys import argv
 import logging
 
-from profile_models import linear_transport_profile, profile_radius_axis
-from solps_interface import run_solps, evaluate_log_posterior, reset_solps
-from input_parsing import parse_inputs, check_dependencies, logger_setup
-from parameter_sets import conductivity_profile, diffusivity_profile
+from mesa.models import linear_transport_profile, profile_radius_axis
+from mesa.solps import run_solps, evaluate_log_posterior, reset_solps
+from mesa.parsing import parse_inputs, check_dependencies, logger_setup
+from mesa.parameters import conductivity_profile, diffusivity_profile
 
 from inference.gp_tools import GpOptimiser, GpRegressor
 from inference.pdf_tools import BinaryTree

@@ -1,7 +1,7 @@
 from numpy import array, concatenate, mean
 from pandas import read_hdf
 
-from input_parsing import parse_inputs
+from mesa.parsing import parse_inputs
 from sys import argv
 
 from inference.gp_tools import GpRegressor
