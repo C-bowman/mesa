@@ -119,17 +119,19 @@ def write_solps_transport_paramters(
     """
 
     # Prepare the file contents in a list
-    sout = []
-    sout.append(' &transport')
-    sout.append(' flag_dna=1, parm_dna='+str(int(n_species))+'*'+str(dna)+',')
-    sout.append(' flag_dpa=1, parm_dpa='+str(int(n_species))+'*'+str(dpa)+',')
-    sout.append(' flag_vla=1, parm_vla='+str(int(n_species))+'*'+str(vla)+',')
-    sout.append(' flag_vsa=1, parm_vsa='+str(int(n_species))+'*'+str(vsa)+',')
-    sout.append(' flag_hci=1, parm_hci='+str(int(n_species))+'*'+str(hci)+',')
-    sout.append(' flag_hce=1, parm_hce='+str(hce)+',')
-    sout.append(' flag_sig=1, parm_sig='+str(sig)+',')
-    sout.append(' flag_alf=1, parm_alf='+str(alf)+',')
-    sout.append(' /')
+    # TODO - check with james if the param values need any formatting
+    sout = [
+        ' &transport',
+        f' flag_dna=1, parm_dna={int(n_species)}*{dna},',
+        f' flag_dpa=1, parm_dpa={int(n_species)}*{dpa},',
+        f' flag_vla=1, parm_vla={int(n_species)}*{vla},',
+        f' flag_vsa=1, parm_vsa={int(n_species)}*{vsa},',
+        f' flag_hci=1, parm_hci={int(n_species)}*{hci},',
+        f' flag_hce=1, parm_hce={hce},',
+        f' flag_sig=1, parm_sig={sig},',
+        f' flag_alf=1, parm_alf={alf},',
+        ' /'
+    ]
 
     # Write the list to a file
     with open(filename, 'w') as f:
