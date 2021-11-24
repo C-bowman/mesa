@@ -153,44 +153,43 @@ def write_solps_b2mn_dat(
     label='Gaussian process test case'
 ):
 
-    sout = []
-
-    sout.append('*label          (lblmn: character*60)')
-    sout.append("  '"+label+"'")
-    sout.append('*b2cmpa  basic parameters')
-    sout.append('*b2cmpb  boundary conditions')
-    sout.append('*b2cmpt  transport coefficients')
-    sout.append('*cflim    cflme    cflmi    cflmv     cflal     cflab')
-    sout.append("  '-1'        "+str(cflme)+"      "+str(cflmi)+"      "+str(cflmv)+"      "+str(cflal)+"      "+str(cflab)+"        0        0        0")
-    sout.append('*endphy')
-    sout.append("'b2mndr_ntim'     '"+str(n_timestep)+"'")
-    sout.append("'b2mndr_dtim'     '"+str(d_timestep)+"'")
-    sout.append("'b2mndt_nstg0'    '1'")
-    sout.append("'b2mndt_nstg1'    '1'")
-    sout.append("'b2mndt_nstg2'    '10'")
-    sout.append("'b2mndt_rxf'      '0.5'")
-    sout.append("'b2mndr_cpu'      '80000.0'")
-    sout.append("'b2mndr_savecpu'  '1000.0'")
-    sout.append("'b2mndr_stim'     '-5'")
-    sout.append("'b2mndr_b2time'   '10'")
-    sout.append("'b2stbc_boundary_namelist' '1'")
-    sout.append("'b2stbr_neutrals_namelist' '1'")
-    sout.append("'b2tqna_transport_namelist' '1'")
-    sout.append("'b2tqna_inputfile' '1'")
-    sout.append("'b2tqna_ballooning' '0'")
-    sout.append("'b2tqna_ballooning_rescale' '1'")
-    sout.append("'b2mndr_eirene'                   '1'")
-    sout.append("'b2mndr_rescale_neutrals_sources' '1e-20'")
-    sout.append("'b2sigp_style'			  '1'")
-    sout.append("'b2news_poteq'             '0'")
-    sout.append("'b2tfhe_no_current'        '1'")
-    sout.append("'b2trno_pol_anom_scale' '0.0'")
-    sout.append("'tallies_netcdf' '1'")
-    sout.append("'b2mndr_na_min' '1.0e10'")
-    sout.append("'balance_netcdf'  '1'")
-    sout.append("'balance_average'  '0'")
-    #sout.append("'eirene_ionising_core'  '1'")
-    sout.append("'eirene_ionising_core'  '0'")
+    sout = [
+        '*label          (lblmn: character*60)',
+        f"  '{label}'",
+        '*b2cmpa  basic parameters',
+        '*b2cmpb  boundary conditions',
+        '*b2cmpt  transport coefficients',
+        '*cflim    cflme    cflmi    cflmv     cflal     cflab',
+        f"  '-1'        {cflme}      {cflmi}      {cflmv}      {cflal}      {cflab}        0        0        0",
+        '*endphy',
+        f"'b2mndr_ntim'     '{n_timestep}'",
+        f"'b2mndr_dtim'     '{d_timestep}'",
+        "'b2mndt_nstg0'    '1'",
+        "'b2mndt_nstg1'    '1'",
+        "'b2mndt_nstg2'    '10'",
+        "'b2mndt_rxf'      '0.5'",
+        "'b2mndr_cpu'      '80000.0'",
+        "'b2mndr_savecpu'  '1000.0'",
+        "'b2mndr_stim'     '-5'",
+        "'b2mndr_b2time'   '10'",
+        "'b2stbc_boundary_namelist' '1'",
+        "'b2stbr_neutrals_namelist' '1'",
+        "'b2tqna_transport_namelist' '1'",
+        "'b2tqna_inputfile' '1'",
+        "'b2tqna_ballooning' '0'",
+        "'b2tqna_ballooning_rescale' '1'",
+        "'b2mndr_eirene'                   '1'",
+        "'b2mndr_rescale_neutrals_sources' '1e-20'",
+        "'b2sigp_style'			  '1'",
+        "'b2news_poteq'             '0'",
+        "'b2tfhe_no_current'        '1'",
+        "'b2trno_pol_anom_scale' '0.0'",
+        "'tallies_netcdf' '1'",
+        "'b2mndr_na_min' '1.0e10'",
+        "'balance_netcdf'  '1'",
+        "'balance_average'  '0'",
+        "'eirene_ionising_core'  '0'"
+    ]
 
     # Write the list to a file
     with open(filename, 'w') as f:
