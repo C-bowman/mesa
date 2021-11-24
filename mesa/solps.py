@@ -42,81 +42,41 @@ def write_solps_transport_inputfile(
     """
 
     # Define list to write the file lines to
-    sout = []
-    sout.append(' &TRANSPORT')
+    sout = [' &TRANSPORT']
 
-    # Write the anomalous radial particle diffusivity profile
-    sout.append(' ndata(1, 1 , 1 )= '+str(len(grid_dperp))+' ,')
-    for i in range(len(grid_dperp)):
-        str1 = "{0:2.0f}".format(i+1)
-        str2 = "{0:6.3f}".format(grid_dperp[i])
-        str3 = "{0:6.3f}".format(values_dperp[i])
-        sout.append(' tdata(1,'+str1 +' , 1 , 1 )= '+str2+' , tdata(2,'+str1+' , 1 , 1 )= '+str3+' ,')
+    def build_profile(grid, values, code):
+        strings = [f' ndata(1, {code} , 1 )= {len(grid)} ,']
+        for i, (x, y) in enumerate(zip(grid, values)):
+            line = f' tdata(1,{i + 1:2.0f} , {code} , 1 )= {x:6.3f} , tdata(2,{i + 1:2.0f} , {code} , 1 )= {y:6.3f} ,'
+            strings.append(line)
+        return strings
 
-    # If requested, write the anomalous viscosity
+    sout.extend(  # Write the anomalous radial particle diffusivity profile
+        build_profile(grid_dperp, values_dperp, code=1)
+    )
+
     if set_ana_visc_dperp:
-        sout.append(' ndata(1, 7 , 1 )= '+str(len(grid_dperp))+' ,')
-        for i in range(len(grid_dperp)):
-            str1 = "{0:2.0f}".format(i+1)
-            str2 = "{0:6.3f}".format(grid_dperp[i])
-            str3 = "{0:6.3f}".format(values_dperp[i])
-            sout.append(' tdata(1,'+str1 +' , 7 , 1 )= '+str2+' , tdata(2,'+str1+' , 7 , 1 )= '+str3+' ,')
+        sout.extend(  # If requested, write the anomalous viscosity
+            build_profile(grid_dperp, values_dperp, code=7)
+        )
 
-    # Write the anomalous radial electron heat diffusivity profile
-    sout.append(' ndata(1, 3 , 1 )= '+str(len(grid_chiiperp))+' ,')
-    for i in range(len(grid_chieperp)):
-        str1 = "{0:2.0f}".format(i+1)
-        str2 = "{0:6.3f}".format(grid_chieperp[i])
-        str3 = "{0:6.3f}".format(values_chieperp[i])
-        sout.append(' tdata(1,'+str1 +' , 3 , 1 )= '+str2+' , tdata(2,'+str1+' , 3 , 1 )= '+str3+' ,')
+    sout.extend(  # Write the anomalous radial electron heat diffusivity profile
+        build_profile(grid_chieperp, values_chieperp, code=3)
+    )
 
-    # Write the anomalous radial ion heat diffusivity profile
-    sout.append(' ndata(1, 4 , 1 )= '+str(len(grid_chiiperp))+' ,')
-    for i in range(len(grid_chiiperp)):
-        str1 = "{0:2.0f}".format(i+1)
-        str2 = "{0:6.3f}".format(grid_chiiperp[i])
-        str3 = "{0:6.3f}".format(values_chiiperp[i])
-        sout.append(' tdata(1,'+str1 +' , 4 , 1 )= '+str2+' , tdata(2,'+str1+' , 4 , 1 )= '+str3+' ,')
+    sout.extend(  # Write the anomalous radial ion heat diffusivity profile
+        build_profile(grid_chiiperp, values_chiiperp, code=4)
+    )
 
-    # Need to write addspec information for other species...
-    #if n_species > 2:
-    #    for i in np.arange(3,n_species+1):
-    #        str1 = "{0:2.0f}".format(i)
-    #        sout.append(' addspec('+str1+',1,1)='+str1+' ,')
-    #        sout.append(' addspec('+str1+',3,1)='+str1+' ,')
+    # TODO - check with james whether '9' is intentionally missing here
+    extra_species = [3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16]
+    sout.extend([f' addspec({i},{j},1)={i} ,' for i in extra_species for j in [1, 3]])
 
-    sout.append(' addspec(3,1,1)=3 ,')
-    sout.append(' addspec(3,3,1)=3 ,')
-    sout.append(' addspec(4,1,1)=4 ,')
-    sout.append(' addspec(4,3,1)=4 ,')
-    sout.append(' addspec(5,1,1)=5 ,')
-    sout.append(' addspec(5,3,1)=5 ,')
-    sout.append(' addspec(6,1,1)=6 ,')
-    sout.append(' addspec(6,3,1)=6 ,')
-    sout.append(' addspec(7,1,1)=7 ,')
-    sout.append(' addspec(7,3,1)=7 ,')
-    sout.append(' addspec(8,1,1)=8 ,')
-    sout.append(' addspec(8,3,1)=8 ,')
-    sout.append(' addspec(10,1,1)=10 ,')
-    sout.append(' addspec(10,3,1)=10 ,')
-    sout.append(' addspec(11,1,1)=11 ,')
-    sout.append(' addspec(11,3,1)=11 ,')
-    sout.append(' addspec(12,1,1)=12 ,')
-    sout.append(' addspec(12,3,1)=12 ,')
-    sout.append(' addspec(13,1,1)=13 ,')
-    sout.append(' addspec(13,3,1)=13 ,')
-    sout.append(' addspec(14,1,1)=14 ,')
-    sout.append(' addspec(14,3,1)=14 ,')
-    sout.append(' addspec(15,1,1)=15 ,')
-    sout.append(' addspec(15,3,1)=15 ,')
-    sout.append(' addspec(16,1,1)=16 ,')
-    sout.append(' addspec(16,3,1)=16 ,')
-
-    if no_pflux == True:
+    if no_pflux:
         sout.append(' no_pflux=.true. ')
 
-    if no_div == True:
-        sout.append(' no_div=.true. ')        
+    if no_div:
+        sout.append(' no_div=.true. ')
 
     sout.append(' /')
 
