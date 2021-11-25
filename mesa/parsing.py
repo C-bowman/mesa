@@ -36,20 +36,45 @@ input_variables = [
 ]
 
 
-def parse_inputs(args):
-    # Get data from the settings module
-    if len(args) == 1:  # check to see if the settings module path was given
-        raise ValueError('Path to settings module was not given as an argument')
+def parse_inputs(settings_filepath):
+    """
+    Checks whether the settings file exists, and contains all necessary
+    fields, then returns its contents as a dictionary.
 
-    if isfile(args[1]):  # check to see if the given path is valid
-        settings = run_path(args[1])  # run the settings module
+    :param settings_filepath: The path to the settings file.
+    :return: Dictionary containing the settings file data.
+    """
+    if type(settings_filepath) is not str:
+        raise TypeError(
+            f"""
+            [ MESA error ]
+            >> Settings file path must be a string.
+            >> Instead type {type(settings_filepath)} was given.
+            """
+        )
+
+    if isfile(settings_filepath):  # check to see if the given path is valid
+        settings = run_path(settings_filepath)  # run the settings module
     else:
-        raise ValueError('{} is not a valid path to a settings module'.format(args[1]))
+        raise FileNotFoundError(
+            f"""
+            [ MESA error ]
+            >> The given string
+            >> '{settings_filepath}'
+            >> is not a valid path to a settings module.
+            """
+        )
 
     # check that the settings module contains all the required information
     for key in input_variables:
         if key not in settings:
-            raise ValueError('"{}" was not found in the settings module'.format(key))
+            raise KeyError(
+                f"""
+                [ MESA error ]
+                >> The '{key}' variable was not
+                >> found in the settings file.
+                """
+            )
     return settings
 
 
@@ -73,12 +98,13 @@ def check_dependencies(settings, skip_training = False):
             raise Exception('File not found: '+output_directory+training_data_file)
 
 
-def logger_setup(args):
-    input_file = args[1]
-    if input_file.endswith('.py'): input_file=input_file[:-3]
-    log_file = input_file + '.log'
-    logging.basicConfig(filename=log_file,level=logging.INFO,
-                        format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+def logger_setup(settings_filepath):
+    path = settings_filepath[:-3] if settings_filepath.endswith('.py') else settings_filepath
+    logging.basicConfig(
+        filename=path + '.log',
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
     # Write to the screen as well
     logging.getLogger().addHandler(logging.StreamHandler())
