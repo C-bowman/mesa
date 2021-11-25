@@ -11,7 +11,7 @@ from pandas import DataFrame, read_hdf
 from os.path import isfile
 import logging
 
-from mesa.parsing import parse_inputs, check_dependencies, logger_setup
+from mesa.parsing import parse_inputs, check_dependencies, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
 from mesa.solps import run_solps, evaluate_log_posterior, reset_solps
 from mesa.parameters import conductivity_profile, diffusivity_profile
@@ -89,9 +89,10 @@ def initial_sampling(settings_filepath):
         # define what columns will be in the dataframe
         cols = [
             'iteration',
-            'gauss_logprob',
+            'gaussian_logprob',
             'cauchy_logprob',
             'laplace_logprob',
+            'logistic_logprob',
             'prediction_mean',
             'prediction_error',
             'convergence_metric',
@@ -167,13 +168,14 @@ def initial_sampling(settings_filepath):
             diagnostic_data_errors=diagnostic_data_errors
         )
 
-        gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
+        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
         # build a new row for the dataframe
         row_dict['iteration'] = i
-        row_dict['gauss_logprob'] = gauss_logprob
+        row_dict['gaussian_logprob'] = gaussian_logprob
         row_dict['cauchy_logprob'] = cauchy_logprob
         row_dict['laplace_logprob'] = laplace_logprob
+        row_dict['logistic_logprob'] = logistic_logprob
         row_dict['prediction_mean'] = None
         row_dict['prediction_error'] = None
         row_dict['convergence_metric'] = None
@@ -254,12 +256,8 @@ def optimizer(settings_filepath):
         logging.info(f"--- Starting iteration {i} ---")
 
         # extract the training data
-        if error_model.lower() == 'gaussian':
-            log_posterior = df['gauss_logprob'].to_numpy().copy()
-        elif error_model.lower() == 'cauchy':
-            log_posterior = df['cauchy_logprob'].to_numpy().copy()
-        elif error_model.lower() == 'laplace':
-            log_posterior = df['laplace_logprob'].to_numpy().copy()
+        logprob_key = check_error_model(error_model)
+        log_posterior = df[logprob_key].to_numpy().copy()
 
         parameters = []
         for tup in zip(*[df[p] for p in free_parameters]):
@@ -400,20 +398,21 @@ def optimizer(settings_filepath):
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
-            iteration = i,
-            directory = output_directory,
-            diagnostic_data_files = diagnostic_data_files,
-            diagnostic_data_observables = diagnostic_data_observables,
-            diagnostic_data_errors = diagnostic_data_errors
+            iteration=i,
+            directory=output_directory,
+            diagnostic_data_files=diagnostic_data_files,
+            diagnostic_data_observables=diagnostic_data_observables,
+            diagnostic_data_errors=diagnostic_data_errors
         )
 
-        gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
+        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
         # build a new row for the dataframe
         row_dict['iteration'] = i
-        row_dict['gauss_logprob'] = gauss_logprob
+        row_dict['gaussian_logprob'] = gaussian_logprob
         row_dict['cauchy_logprob'] = cauchy_logprob
         row_dict['laplace_logprob'] = laplace_logprob
+        row_dict['logistic_logprob'] = logistic_logprob
         row_dict['prediction_mean'] = mu_lp,
         row_dict['prediction_error'] = sigma_lp,
         row_dict['convergence_metric'] = convergence
@@ -496,15 +495,11 @@ def random_search(settings_filepath):
 
         # get the current iteration number
         i = df['iteration'].max()+1
-        logging.info('--- Starting iteration '+str(i)+' ---')
+        logging.info(f"--- Starting iteration {i} ---")
 
         # extract the training data
-        if error_model.lower() == 'gaussian':
-            log_posterior = df['gauss_logprob'].to_numpy().copy()
-        elif error_model.lower() == 'cauchy':
-            log_posterior = df['cauchy_logprob'].to_numpy().copy()
-        elif error_model.lower() == 'laplace':
-            log_posterior = df['laplace_logprob'].to_numpy().copy()
+        logprob_key = check_error_model(error_model)
+        log_posterior = df[logprob_key].to_numpy().copy()
 
         parameters = []
         for tup in zip(*[df[p] for p in free_parameters]):
@@ -603,13 +598,14 @@ def random_search(settings_filepath):
             diagnostic_data_errors=diagnostic_data_errors
         )
 
-        gauss_logprob, cauchy_logprob, laplace_logprob = logprobs
+        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
         # build a new row for the dataframe
         row_dict['iteration'] = i
-        row_dict['gauss_logprob'] = gauss_logprob
+        row_dict['gaussian_logprob'] = gaussian_logprob
         row_dict['cauchy_logprob'] = cauchy_logprob
         row_dict['laplace_logprob'] = laplace_logprob
+        row_dict['logistic_logprob'] = logistic_logprob
         row_dict['prediction_mean'] = mu_lp,
         row_dict['prediction_error'] = sigma_lp,
         row_dict['convergence_metric'] = convergence
@@ -619,4 +615,4 @@ def random_search(settings_filepath):
         del df
 
         if i % solps_iter_reset == 0:
-            reset_solps(run_directory,ref_directory)
+            reset_solps(run_directory, ref_directory)

@@ -98,6 +98,19 @@ def check_dependencies(settings, skip_training = False):
             raise Exception('File not found: '+output_directory+training_data_file)
 
 
+def check_error_model(error_model):
+    if error_model.lower() in {'gaussian', 'cauchy', 'laplace', 'logistic'}:
+        return error_model.lower() + '_logprob'
+    else:
+        raise ValueError(
+            f"""
+            [ MESA ERROR ]
+            >> The 'error_model' settings variable was specified as {error_model},
+            >> but must be either 'gaussian', 'cauchy', 'laplace' or 'logistic'.
+            """
+        )
+
+
 def logger_setup(settings_filepath):
     path = settings_filepath[:-3] if settings_filepath.endswith('.py') else settings_filepath
     logging.basicConfig(
