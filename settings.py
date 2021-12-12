@@ -16,15 +16,12 @@ solps_output_directory = '/pfs/work/g2hjame/solpsopt_runs/tcv_58196_1.2s/'
 # file name in which the training data will be stored
 training_data_file = 'training_data.h5'
 
-# file names in which the experimental data are stored
-diagnostic_data_files = ['TCV_TS_58196_1200ms_combined', 'TCV_LP_58196_1200ms']
 
-# description of the data stored in the data file - ne, te, ne_weighted_te, ti, prad or jsat
-diagnostic_data_observables = [['ne', 'ne_weighted_te'],
-                               ['jsat']]
+# ----------------------------------------------------------------------------
+#   diagnostics settings
+# ----------------------------------------------------------------------------
 
-
-
+diagnostics = []
 
 
 # ----------------------------------------------------------------------------
@@ -67,7 +64,7 @@ cross_validation = False
 
 # Import one of the covariance functions from gp_tools as the
 # covariance_kernel variable so it can be passed to the GP.
-from inference.gp_tools import SquaredExponential
+from inference.gp import SquaredExponential
 covariance_kernel = SquaredExponential
 
 # Set the lower and upper bounds for the log-scale hyper-parameters
@@ -93,8 +90,8 @@ initial_sample_count = 30
 # Maximum number of iterations after which the optimisation terminates
 max_iterations = 200
 
-# specifies what criteria is used to select new proposed evaluations
-from inference.gp_tools import UpperConfidenceBound
+# specifies which criteria is used to select new proposed evaluations
+from inference.gp import UpperConfidenceBound
 acquisition_function = UpperConfidenceBound(kappa=1.)
 
 # Select whether or not a trust-region approach is used.

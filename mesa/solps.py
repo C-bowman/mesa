@@ -5,11 +5,10 @@ from time import sleep, time
 import logging
 import subprocess
 import filecmp
-from scipy.io import netcdf
-from numpy import array, arange, isfinite, mean, sum, where, zeros, sqrt, vstack, unique, log
-from copy import deepcopy
-import matplotlib.path as mplPath
-from pandas import read_hdf
+from numpy import sum
+
+from sims.interface import SolpsInterface
+from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
 
 def write_solps_transport_inputfile(
@@ -407,128 +406,11 @@ def cancel_solps(jobstr):
     comm = test.communicate()[0]
 
 
-def read_solps_data(filename = None):
+def evaluate_log_posterior(diagnostics, iteration=None, directory=None):
     """
-    Reads data from SOLPS output files
-    """
+    :param list diagnostics: \
+        A list of instrument objects from ``sims.instruments``.
 
-    # Physical constants
-    el_ch = 1.602E-19
-    me = 9.109E-31
-    mi = 3.343E-27  # Deuterium mass!
-
-    # load solps data
-    f = netcdf.netcdf_file(filename,'r')
-    crx = deepcopy(f.variables['crx'].data)
-    cry = deepcopy(f.variables['cry'].data)
-    vol = deepcopy(f.variables['vol'].data)
-    solps_ne = deepcopy(f.variables['ne'].data)
-    solps_na = deepcopy(f.variables['na'].data)
-    solps_species = deepcopy(f.variables['species'].data)
-    solps_te = deepcopy(f.variables['te'].data)/el_ch
-    solps_ti = deepcopy(f.variables['ti'].data)/el_ch
-    solps_vi = deepcopy(f.variables['ua'].data)
-    solps_dab2 = deepcopy(f.variables['dab2'].data[:,:,0:-2])   # Atomic density
-    solps_dmb2 = deepcopy(f.variables['dmb2'].data[:,:,0:-2])   # Molecular density
-    eirene_sion = sum(f.variables['eirene_mc_papl_sna_bal'].data,axis=0)[1,:,:]
-    eirene_eloss = sum(f.variables['eirene_mc_eael_she_bal'].data,axis=0)
-    b2_ploss = deepcopy(f.variables['b2stel_she_bal'].data)
-
-    # Estimate the total radiated power emissivity
-    prad = b2_ploss/vol+(eirene_eloss-13.6*eirene_sion*el_ch)/vol
-
-    # Estimate the ion saturation current density
-    jsat = el_ch*solps_ne*sqrt(el_ch*(solps_te+solps_ti)/(me+mi))
-
-    # Estimate the positions of the the separatrix and outer mid-plane
-    sep = deepcopy(f.variables['jsep'].data)+2  # Separatrix ring
-    omp = deepcopy(f.variables['jxa'].data)+2  # Outer mid-plane cell index
-
-    # Close the file
-    f.close()
-    f.flush()
-
-    # Calculate the centres of the SOLPS grid cells
-    solps_cen_x = mean(crx,0)
-    solps_cen_y = mean(cry,0)
-
-    # Populate the output list
-    output = {}
-    output['vertex_x'] = crx
-    output['vertex_y'] = cry
-    output['ne']       = solps_ne
-    output['na']       = solps_na
-    output['species']  = solps_species
-    output['te']       = solps_te
-    output['ti']       = solps_ti
-    output['vi']       = solps_vi
-    output['natm']     = solps_dab2
-    output['nmol']     = solps_dmb2
-    output['sion']     = eirene_sion
-    output['prad']     = prad
-    output['jsat']     = jsat
-    output['sep_indx'] = sep
-    output['omp_indx'] = omp
-    output['cen_x']    = solps_cen_x
-    output['cen_y']    = solps_cen_y
-    
-    return output
-
-
-def calc_point_geo_matrix(samples_r, samples_z, samples_n, cells):
-    '''
-    Calculates a geometry matrix for pointwise measurements.  Each measurement
-    is assumed to comprise of a point cloud of coordinates (r,z).  The position
-    of each coordinate within each modelling mesh cell is calculated and returned
-    in the geometry matrix
-
-    Inputs:
-        - samples_r: radial coordinates
-        - samples_z: vertical coordinates
-        - samples_n: measurement index {0, ..., number_of_measurements}
-        - cells: matplotlib PathCollection containing the modelling grid cells
-    '''
-
-    geomat = zeros((int(samples_n.max())+1,len(cells)))
-    pts = vstack((samples_r,samples_z)).transpose()
-
-    for i in arange(len(cells)):
-        tmp1 = cells[i].contains_points(pts)
-        if tmp1.sum() > 0:
-            # Found some Thomson scattering points within grid cells
-            tmp2 = unique(tmp1*samples_n,return_counts=True)
-
-            for j in arange(len(tmp2[0])):
-                if tmp2[0][j] > 0:
-                    geomat[int(tmp2[0][j]),i] += tmp2[1][j]
-
-    # Normalise the geometry matrix by the number of samples
-    n_samples = unique(samples_n, return_counts=True)
-
-    for i in arange(int(samples_n.max())+1):
-        geomat[i,:] /= n_samples[1][i]
-
-    return geomat
-
-
-def gaussian_likelihood(data, errors, prediction):
-    z = (data-prediction)/errors
-    return -0.5*(z**2).sum()
-
-
-def cauchy_likelihood(data, errors, prediction):
-    z = (data-prediction)/errors
-    return -log(1 + z**2).sum()
-
-
-def laplace_likelihood(data, errors, prediction):
-    z = (data-prediction)/errors
-    return -abs(z).sum()
-
-
-def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_files = None,
-                           diagnostic_data_observables = None, diagnostic_data_errors = None):
-    """
     :param int iteration: \
         iteration number of the solps run for which the posterior log-probability is calculated.
 
@@ -546,200 +428,15 @@ def evaluate_log_posterior(iteration = None, directory = None, diagnostic_data_f
     solps_path = directory + 'solps_run_{}.nc'.format(int(iteration))
 
     # read the SOLPS data
-    solps_data = read_solps_data(solps_path)
+    solps_data = SolpsInterface(solps_path)
 
-    # Create an array of SOLPS cells
-    cells = []
-    for i in arange(solps_data['vertex_x'].shape[1]):
-        for j in arange(solps_data['vertex_x'].shape[2]):
-            cell_boundary = [ [ solps_data['vertex_x'][k,i,j], solps_data['vertex_y'][k,i,j] ] for k in (3,1,0,2,3) ]
-            cells.append(mplPath.Path(cell_boundary))
+    # update the diagnostics with the latest SOLPS data
+    for dia in diagnostics:
+        dia.update_interface(solps_data)
 
-    solps_ne_cell = solps_data['ne'].flatten()
-    solps_te_cell = solps_data['te'].flatten()
-    solps_ti_cell = solps_data['ti'].flatten()
-    solps_jsat_cell = solps_data['jsat'].flatten()
-    solps_prad_cell = solps_data['prad'].flatten()
-
-    # storage for the log-probabilities
-    gauss_logprobs = []
-    cauchy_logprobs = []
-    laplace_logprobs = []
-
-    # Read the experimental data
-    for filename, observables, errors in zip(diagnostic_data_files, diagnostic_data_observables, diagnostic_data_errors):
-
-        data = read_hdf(directory+filename+'.h5','data',mode='r')
-
-        # Read the geometry information
-        sample_r = data['sample_r'].to_numpy()
-        sample_z = data['sample_z'].to_numpy()
-        sample_n = data['sample_n'].to_numpy()
-        data_type = data['measurement_type'].to_numpy()[0]
-
-        # Check if a geometry matrix has been calculated
-
-        # If not, calculate the geometry matrix
-        if data_type == 'point':
-            geomat = calc_point_geo_matrix(sample_r,sample_z,sample_n,cells)
-
-        if data_type == 'line':
-            raise Exception('Measurement type not yet supported.')
-
-        for tag, error_tag in zip(observables, errors):
-            if tag == 'ne':
-                predicted_data = geomat.dot(solps_ne_cell)
-
-            if tag == 'te':
-                predicted_data = geomat.dot(solps_te_cell)
-
-            if tag == 'ne_weighted_te':
-                predicted_data = geomat.dot(solps_te_cell*solps_ne_cell)/geomat.dot(solps_ne_cell)
-
-            if tag == 'ti':
-                predicted_data = geomat.dot(solps_ti_cell)
-
-            if tag == 'jsat':
-                predicted_data = geomat.dot(solps_jsat_cell)
-
-            if tag == 'prad':
-                predicted_data = geomat.dot(solps_prad_cell)
-
-            # extract the data
-            measurements = data[tag].to_numpy().copy()
-            errors = data[error_tag].to_numpy().copy()
-
-            # the data have some padding in them which we need to remove first
-            data_inds = where( isfinite(data['r'].to_numpy()) )
-            measurements = measurements[data_inds]
-            errors = errors[data_inds]
-
-            # now filter out non-finite data and measurements outside the grid
-            finite_data = isfinite(measurements)
-            finite_errs = isfinite(errors)
-            valid_geometry = sum(geomat, axis = 1) > 0.99
-
-            valid_indices = where( finite_data & finite_errs & valid_geometry )
-
-            measurements = measurements[valid_indices]
-            errors = errors[valid_indices]
-            predictions = predicted_data[valid_indices]
-
-            # calculate the likelihoods
-            cauchy_logprobs.append( cauchy_likelihood( measurements, errors, predictions ) )
-            gauss_logprobs.append( gaussian_likelihood( measurements, errors, predictions ) )
-            laplace_logprobs.append( laplace_likelihood( measurements, errors, predictions ) )
-
-
-    # calculate the log-posterior probability
-    total_cauchy_logprob = sum(cauchy_logprobs)
-    total_gauss_logprob = sum(gauss_logprobs)
-    total_laplace_logprob = sum(laplace_logprobs)
-    return total_gauss_logprob, total_cauchy_logprob, total_laplace_logprob
-
-
-
-
-
-
-def build_solps_mesh(solps_file):
-    from mesh_tools.mesh import Triangle, TriangularMesh
-
-    # load solps data
-    f = netcdf.netcdf_file(solps_file,'r')
-    crx = deepcopy(f.variables['crx'].data)
-    cry = deepcopy(f.variables['cry'].data)
-
-    # Close the file
-    f.close()
-    f.flush()
-
-    # Calculate the centres of the SOLPS grid cells
-    R = mean(crx,axis=0)
-    z = mean(cry,axis=0)
-
-    # build a mesh by splitting SOLPS grid cells
-    triangles = []
-    for i in range(R.shape[0]-1):
-        for j in range(R.shape[1]-1):
-            p1 = (R[i,j], z[i,j])
-            p2 = (R[i+1,j], z[i+1,j])
-            p3 = (R[i,j+1], z[i,j+1])
-            p4 = (R[i+1,j+1], z[i+1,j+1])
-            triangles.append( Triangle(p1, p2, p3) )
-            triangles.append( Triangle(p2, p3, p4) )
-
-    return TriangularMesh(triangles = triangles)
-
-
-
-
-
-
-def evaluate_midas_posterior(midas_input_file, solps_file):
-    posterior = build_midas_posterior(midas_input_file)
-    theta = build_midas_parameters(posterior, solps_file)
-    return posterior(theta)
-
-
-
-
-
-
-def build_midas_posterior(midas_input_file):
-    from runpy import run_path
-    from os.path import isfile
-
-    if isfile(midas_input_file):  # check to see if the given path is valid
-        settings = run_path(midas_input_file)  # run the settings module
-    else:
-        raise ValueError('{} is not a valid path to an input module'.format(midas_input_file))
-
-    if 'posterior' not in settings:
-        raise ValueError('"posterior" was not found in the input module')
-
-    return settings['posterior']
-
-
-
-
-
-
-def build_midas_parameters(posterior, solps_file):
-    # get all the fields required by the posterior
-    field_tags = [ tag for tag in posterior.plasma.parameters.keys() ]
-
-    # load solps data
-    f = netcdf.netcdf_file(solps_file,'r')
-    R = deepcopy(f.variables['crx'].data)
-    z = deepcopy(f.variables['cry'].data)
-    solps_ne = deepcopy(f.variables['ne'].data)
-    solps_te = deepcopy(f.variables['te'].data)
-
-    # Close the file
-    f.close()
-    f.flush()
-
-    # Calculate the centres of the SOLPS grid cells
-    R = mean(R,axis=0)
-    z = mean(z,axis=0)
-
-    # build a map from the vertex coords to the grid indices
-    map = {}
-    for i in range(R.shape[0]):
-        for j in range(R.shape[1]):
-            map[(R[i,j],z[i,j])] = (i,j)
-
-    # get a list of the grid indices for each vertex in order
-    vertex_order = [map[v] for v in posterior.plasma.mesh.vertices]
-
-    # prepare the field vectors
-    mesh_fields = {
-        'Te' : array([solps_te[i,j] for i,j in vertex_order]),
-        'ne' : array([solps_ne[i,j] for i,j in vertex_order])
-    }
-
-    # construct the parameter vector
-    theta = zeros(posterior.plasma.N_params)
-    for tag in field_tags:
-        theta[posterior.plasma.slices[tag]] = mesh_fields[tag]
+    # calculate the log-probabilities
+    gauss_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in diagnostics])
+    cauchy_logprob = sum([dia.log_likelihood(likelihood=cauchy_likelihood) for dia in diagnostics])
+    laplace_logprob = sum([dia.log_likelihood(likelihood=laplace_likelihood) for dia in diagnostics])
+    logistic_logprob = sum([dia.log_likelihood(likelihood=logistic_likelihood) for dia in diagnostics])
+    return gauss_logprob, cauchy_logprob, laplace_logprob, logistic_logprob

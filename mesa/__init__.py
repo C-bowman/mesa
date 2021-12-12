@@ -16,8 +16,8 @@ from mesa.models import linear_transport_profile, profile_radius_axis
 from mesa.solps import run_solps, evaluate_log_posterior, reset_solps
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
-from inference.gp_tools import GpOptimiser, GpRegressor
-from inference.pdf_tools import BinaryTree
+from inference.gp import GpOptimiser, GpRegressor
+from inference.pdf import BinaryTree
 
 
 def bounds_transform(v, bounds, inverse=False):
@@ -52,7 +52,7 @@ def initial_sampling(settings_filepath):
     settings = parse_inputs(settings_filepath)
 
     # Check other data files are present
-    check_dependencies(settings, skip_training = True)
+    check_dependencies(settings, skip_training=True)
 
     # set-up the log file
     logger_setup(settings_filepath)
@@ -62,9 +62,7 @@ def initial_sampling(settings_filepath):
     output_directory = settings['solps_output_directory']
     ref_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
-    diagnostic_data_files = settings['diagnostic_data_files']
-    diagnostic_data_observables = settings['diagnostic_data_observables']
-    diagnostic_data_errors = settings['diagnostic_data_errors']
+    diagnostics = settings['diagnostics']
 
     # SOLPS settings
     solps_n_timesteps = settings['solps_n_timesteps']
@@ -163,9 +161,7 @@ def initial_sampling(settings_filepath):
         logprobs = evaluate_log_posterior(
             iteration=i,
             directory=output_directory,
-            diagnostic_data_files=diagnostic_data_files,
-            diagnostic_data_observables=diagnostic_data_observables,
-            diagnostic_data_errors=diagnostic_data_errors
+            diagnostics=diagnostics
         )
 
         gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
@@ -210,9 +206,7 @@ def optimizer(settings_filepath):
     ref_directory = settings['solps_ref_directory']
     output_directory = settings['solps_output_directory']
     training_data_file = settings['training_data_file']
-    diagnostic_data_files = settings['diagnostic_data_files']
-    diagnostic_data_observables = settings['diagnostic_data_observables']
-    diagnostic_data_errors = settings['diagnostic_data_errors']
+    diagnostics = settings['diagnostics']
 
     # SOLPS settings
     solps_n_species = settings['solps_n_species']
@@ -400,9 +394,7 @@ def optimizer(settings_filepath):
         logprobs = evaluate_log_posterior(
             iteration=i,
             directory=output_directory,
-            diagnostic_data_files=diagnostic_data_files,
-            diagnostic_data_observables=diagnostic_data_observables,
-            diagnostic_data_errors=diagnostic_data_errors
+            diagnostics=diagnostics
         )
 
         gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
@@ -452,9 +444,7 @@ def random_search(settings_filepath):
     ref_directory = settings['solps_ref_directory']
     output_directory = settings['solps_output_directory']
     training_data_file = settings['training_data_file']
-    diagnostic_data_files = settings['diagnostic_data_files']
-    diagnostic_data_observables = settings['diagnostic_data_observables']
-    diagnostic_data_errors = settings['diagnostic_data_errors']
+    diagnostics = settings['diagnostics']
 
     # SOLPS settings
     solps_n_species = settings['solps_n_species']
@@ -593,9 +583,7 @@ def random_search(settings_filepath):
         logprobs = evaluate_log_posterior(
             iteration=i,
             directory=output_directory,
-            diagnostic_data_files=diagnostic_data_files,
-            diagnostic_data_observables=diagnostic_data_observables,
-            diagnostic_data_errors=diagnostic_data_errors
+            diagnostics=diagnostics
         )
 
         gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs

@@ -9,9 +9,8 @@ input_variables = [
     'solps_ref_directory',
     'solps_output_directory',
     'training_data_file',
-    'diagnostic_data_files',
-    'diagnostic_data_observables',
-    'diagnostic_data_errors',
+# synthetic diagnostic objects
+    'diagnostics',
 # SOLPS settings
     'solps_n_timesteps',
     'solps_dt',
@@ -78,19 +77,13 @@ def parse_inputs(settings_filepath):
     return settings
 
 
-def check_dependencies(settings, skip_training = False):
+def check_dependencies(settings, skip_training=False):
     """
     Checks that the files required to run the optimiser are present.
     If a file is missing, an exception is raised.
     """
     output_directory = settings['solps_output_directory']
     training_data_file = settings['training_data_file']
-    diagnostic_data_files = settings['diagnostic_data_files']
-
-    # Check if diagnostic data is present
-    for df in diagnostic_data_files:
-        if not isfile(output_directory+df+'.h5'):
-            raise Exception('File not found: '+output_directory+df+'.h5')
 
     # Check if training data is present
     if skip_training is False:
