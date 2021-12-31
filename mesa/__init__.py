@@ -262,7 +262,7 @@ def optimizer(settings_filepath):
         normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
 
         # build the set of grid-transformed points
-        grid_set = set( grid_transform(p) for p in normalised_parameters )
+        grid_set = {grid_transform(p) for p in normalised_parameters}
 
         # set the covariance kernel parameter bounds
         amplitude = log(log_posterior.ptp())
@@ -312,10 +312,8 @@ def optimizer(settings_filepath):
 
         # maximise the acquisition both by multi-start bfgs and differential evolution,
         # and use the best of the two
-        # TODO - propose_evaluation doesnt have arguments anymore - add them back
-        # TODO - The way the acquis funcs select starting points for bfgs doesnt really work properly for trust regions
-        bfgs_prop = GPopt.propose_evaluation(bfgs=True)
-        diff_prop = GPopt.propose_evaluation()
+        bfgs_prop = GPopt.propose_evaluation(optimizer="bfgs")
+        diff_prop = GPopt.propose_evaluation(optimizer="diffev")
 
         bfgs_acq = GPopt.acquisition(bfgs_prop)
         diff_acq = GPopt.acquisition(diff_prop)
@@ -575,7 +573,7 @@ def random_search(settings_filepath):
 
         if run_status == False:
             logging.info('[optimiser] Restoring SOLPS run directory from reference.')
-            reset_solps(run_directory,ref_directory)
+            reset_solps(run_directory, ref_directory)
             logging.info('[optimiser] Restoration complete, trying new run...')
             continue
 
