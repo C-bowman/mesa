@@ -20,8 +20,18 @@ training_data_file = 'training_data.h5'
 # ----------------------------------------------------------------------------
 #   diagnostics settings
 # ----------------------------------------------------------------------------
+from numpy import load
+from sims.instruments import ThomsonScattering
 
-diagnostics = []
+instrument_data = load('# instrument data path #')
+TS = ThomsonScattering(
+    R=instrument_data['R'],
+    z=instrument_data['z'],
+    weights=instrument_data['weights'],
+    measurements=load('# measurement data path #')
+)
+
+diagnostics = [TS]
 
 
 # ----------------------------------------------------------------------------
