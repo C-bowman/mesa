@@ -60,7 +60,8 @@ solps_n_species = 9
 # Number of hours to leave SOLPS running before timing out
 solps_timeout_hours = 5
 
-
+# The range over which the transport coefficient profiles are defined
+transport_profile_bounds = (-0.1, 0.1)
 
 
 

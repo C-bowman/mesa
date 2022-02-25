@@ -19,6 +19,7 @@ input_variables = [
     'set_divertor_transport',
     'solps_n_species',
     'solps_timeout_hours',
+    'transport_profile_bounds',
 # gaussian-process regression settings
     'cross_validation',
     'covariance_kernel',

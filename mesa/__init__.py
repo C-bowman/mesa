@@ -72,6 +72,7 @@ def initial_sampling(settings_filepath):
     solps_n_species = settings['solps_n_species']
     solps_timeout_hours = settings['solps_timeout_hours']
     set_divertor_transport = settings['set_divertor_transport']
+    transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     fixed_parameter_values = settings['fixed_parameter_values']
@@ -124,13 +125,13 @@ def initial_sampling(settings_filepath):
             row_dict[key] = uniform_sample(optimisation_bounds[key])
 
         # produce transport profiles defined by new point
-        radius = profile_radius_axis()
+        radius = profile_radius_axis(boundaries=transport_profile_bounds)
 
         chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params)
+        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
 
         D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params)
+        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
         dna = row_dict['D_div']
         hc  = row_dict['chi_div']
 
@@ -216,6 +217,7 @@ def optimizer(settings_filepath):
     solps_iter_reset = settings['solps_iter_reset']
     set_divertor_transport = settings['set_divertor_transport']
     solps_timeout_hours = settings['solps_timeout_hours']
+    transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     max_iterations = settings['max_iterations']
@@ -356,13 +358,13 @@ def optimizer(settings_filepath):
             )
 
         # produce transport profiles defined by new point
-        radius = profile_radius_axis()
+        radius = profile_radius_axis(boundaries=transport_profile_bounds)
 
         chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params)
+        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
 
         D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params)
+        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
         dna = row_dict['D_div']
         hc  = row_dict['chi_div']
 
@@ -452,6 +454,7 @@ def random_search(settings_filepath):
     solps_iter_reset = settings['solps_iter_reset']
     set_divertor_transport = settings['set_divertor_transport']
     solps_timeout_hours = settings['solps_timeout_hours']
+    transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     max_iterations = settings['max_iterations']
@@ -534,13 +537,13 @@ def random_search(settings_filepath):
             row_dict[key] = val
 
         # produce transport profiles defined by new point
-        radius = profile_radius_axis()
+        radius = profile_radius_axis(boundaries=transport_profile_bounds)
 
         chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params)
+        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
 
         D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params)
+        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
         dna = row_dict['D_div']
         hc  = row_dict['chi_div']
 

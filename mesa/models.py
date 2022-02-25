@@ -31,15 +31,15 @@ def exponential_transport_profile(x, params):
     in_middle = ~(in_left | in_right)
     conditions = [in_left, in_middle, in_right]
     functions = [
-        lambda x : left_section_exp(x, L_asymp, M_height, L_shape, L_bound),
-        lambda x : middle_section(x, M_height),
-        lambda x : right_section_exp(x, R_asymp, M_height, R_shape, R_bound)
+        lambda x: left_section_exp(x, L_asymp, M_height, L_shape, L_bound),
+        lambda x: middle_section(x, M_height),
+        lambda x: right_section_exp(x, R_asymp, M_height, R_shape, R_bound)
     ]
 
     return piecewise(x, conditions, functions)
 
 
-def linear_transport_profile(x, params):
+def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
     M_height = params[5]  # height of the middle section
     L_asymp = params[0] + M_height  # left boundary height
     R_asymp = params[1] + M_height  # right asymptote height
@@ -59,14 +59,15 @@ def linear_transport_profile(x, params):
     conditions = [in_left, in_left_mid, in_middle, in_right_mid, in_right]
 
     # get the line gradients for each section
-    L_m = (L_mid - L_asymp) / (L_bound - L_gap + 0.1)
-    R_m = (R_asymp - R_mid) / (0.1 - R_bound - R_gap)
+    Lx, Rx = boundaries
+    L_m = (L_mid - L_asymp) / (L_bound - L_gap - Lx)
+    R_m = (R_asymp - R_mid) / (Rx - R_bound - R_gap)
     ML_m = (M_height - L_mid) / L_gap
     MR_m = (R_mid - M_height) / R_gap
 
     # get the line y-intercepts for each section
-    L_c = L_asymp - L_m*(-0.1)
-    R_c = R_asymp - R_m*(0.1)
+    L_c = L_asymp - L_m*Lx
+    R_c = R_asymp - R_m*Rx
     ML_c = L_mid - ML_m*(L_bound - L_gap)
     MR_c = R_mid - MR_m*(R_bound + R_gap)
 
@@ -82,13 +83,14 @@ def linear_transport_profile(x, params):
     return piecewise(x, conditions, functions)
 
 
-def profile_radius_axis(logarithmic=True, N_points=32):
+def profile_radius_axis(logarithmic=True, N_points=32, boundaries=(-0.1, 0.1)):
+    lwr, upr = boundaries
     if logarithmic:
         grd = exp(-linspace(0.0, 3.0, N_points//2))
-        grd = grd-min(grd)+0.01
-        grd = (-0.1)*grd/max(grd)
+        grd = grd - grd.min() + 0.01
+        grd = lwr*grd / grd.max()
         radius = concatenate([grd, -grd[::-1]])
     else:
-        radius = linspace(-0.1, 0.1, N_points)
+        radius = linspace(lwr, upr, N_points)
 
     return radius
