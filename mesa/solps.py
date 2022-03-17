@@ -89,113 +89,139 @@ def write_solps_transport_inputfile(
 
 
 
-def write_solps_transport_paramters(
-    filename,
-    n_species,
-    dna,
-    dpa,
-    vla,
-    vsa,
-    hci,
-    hce,
-    sig,
-    alf
+# def write_solps_transport_paramters(
+#     filename,
+#     n_species,
+#     dna,
+#     dpa,
+#     vla,
+#     vsa,
+#     hci,
+#     hce,
+#     sig,
+#     alf
+# ):
+#
+#     """
+#     Writes a b2.transport.inputfile to prepare a SOLPS-ITER run.
+#     Inputs:
+#         - filename: name of file to output
+#         - n_species: number of species to apply transport coefficients to
+#         - dna: anomalous radial particle diffusivity
+#         - dpa: anomalous pressure driven radial particle diffusivity (usually zero)
+#         - vla: radial pinch velocity (usually zero)
+#         - vsa: anomalous viscosity (usually 1.0)
+#         - hci: anomalous radial ion heat diffusivity
+#         - hce: anomalous radial electron heat diffusivity
+#         - sig: anomalous current conductivity
+#         - alf: anomalous thermo-electric current
+#     """
+#
+#     # Prepare the file contents in a list
+#     sout = [
+#         ' &transport',
+#         f' flag_dna=1, parm_dna={int(n_species)}*{dna},',
+#         f' flag_dpa=1, parm_dpa={int(n_species)}*{dpa},',
+#         f' flag_vla=1, parm_vla={int(n_species)}*{vla},',
+#         f' flag_vsa=1, parm_vsa={int(n_species)}*{vsa},',
+#         f' flag_hci=1, parm_hci={int(n_species)}*{hci},',
+#         f' flag_hce=1, parm_hce={hce},',
+#         f' flag_sig=1, parm_sig={sig},',
+#         f' flag_alf=1, parm_alf={alf},',
+#         ' /'
+#     ]
+#
+#     # Write the list to a file
+#     with open(filename, 'w') as f:
+#         for item in sout:
+#             f.write("%s\n" % item)
+
+
+
+
+
+
+# def write_solps_b2mn_dat(
+#     filename,
+#     n_timestep,
+#     d_timestep,
+#     cflme=0.3,  # Multiplier to the electron heat flux limit
+#     cflmi=1.0,  # Multiplier to the ion heat flux limit
+#     cflmv=0.5,  # Multiplier to the viscous heat flux limit
+#     cflal=0.5,  # Multilier to the thermo-electric coefficient flux limit
+#     cflab=0.5,  #  Multiplier to the friction force flux limit
+#     label='Gaussian process test case'
+# ):
+#
+#     sout = [
+#         '*label          (lblmn: character*60)',
+#         f"  '{label}'",
+#         '*b2cmpa  basic parameters',
+#         '*b2cmpb  boundary conditions',
+#         '*b2cmpt  transport coefficients',
+#         '*cflim    cflme    cflmi    cflmv     cflal     cflab',
+#         f"  '-1'        {cflme}      {cflmi}      {cflmv}      {cflal}      {cflab}        0        0        0",
+#         '*endphy',
+#         f"'b2mndr_ntim'     '{n_timestep}'",
+#         f"'b2mndr_dtim'     '{d_timestep}'",
+#         "'b2mndt_nstg0'    '1'",
+#         "'b2mndt_nstg1'    '1'",
+#         "'b2mndt_nstg2'    '10'",
+#         "'b2mndt_rxf'      '0.5'",
+#         "'b2mndr_cpu'      '80000.0'",
+#         "'b2mndr_savecpu'  '1000.0'",
+#         "'b2mndr_stim'     '-5'",
+#         "'b2mndr_b2time'   '10'",
+#         "'b2stbc_boundary_namelist' '1'",
+#         "'b2stbr_neutrals_namelist' '1'",
+#         "'b2tqna_transport_namelist' '1'",
+#         "'b2tqna_inputfile' '1'",
+#         "'b2tqna_ballooning' '0'",
+#         "'b2tqna_ballooning_rescale' '1'",
+#         "'b2mndr_eirene'                   '1'",
+#         "'b2mndr_rescale_neutrals_sources' '1e-20'",
+#         "'b2sigp_style'			  '1'",
+#         "'b2news_poteq'             '0'",
+#         "'b2tfhe_no_current'        '1'",
+#         "'b2trno_pol_anom_scale' '0.0'",
+#         "'tallies_netcdf' '1'",
+#         "'b2mndr_na_min' '1.0e10'",
+#         "'balance_netcdf'  '1'",
+#         "'balance_average'  '0'",
+#         "'eirene_ionising_core'  '0'"
+#     ]
+#
+#     # Write the list to a file
+#     with open(filename, 'w') as f:
+#         for item in sout:
+#             f.write("%s\n" % item)
+
+
+def build_solps_case(
+        reference_directory,
+        case_directory,
+        parameter_dictionary
 ):
+    # create the case directory and copy all the reference files
+    subprocess.run(["mkdir", case_directory])
+    subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstate"])
+    subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstai"])
 
-    """
-    Writes a b2.transport.inputfile to prepare a SOLPS-ITER run.
-    Inputs:
-        - filename: name of file to output
-        - n_species: number of species to apply transport coefficients to
-        - dna: anomalous radial particle diffusivity
-        - dpa: anomalous pressure driven radial particle diffusivity (usually zero)
-        - vla: radial pinch velocity (usually zero)
-        - vsa: anomalous viscosity (usually 1.0)
-        - hci: anomalous radial ion heat diffusivity
-        - hce: anomalous radial electron heat diffusivity
-        - sig: anomalous current conductivity
-        - alf: anomalous thermo-electric current
-    """
+    variables = ['stuff']
 
-    # Prepare the file contents in a list
-    # TODO - check with james if the param values need any formatting
-    sout = [
-        ' &transport',
-        f' flag_dna=1, parm_dna={int(n_species)}*{dna},',
-        f' flag_dpa=1, parm_dpa={int(n_species)}*{dpa},',
-        f' flag_vla=1, parm_vla={int(n_species)}*{vla},',
-        f' flag_vsa=1, parm_vsa={int(n_species)}*{vsa},',
-        f' flag_hci=1, parm_hci={int(n_species)}*{hci},',
-        f' flag_hce=1, parm_hce={hce},',
-        f' flag_sig=1, parm_sig={sig},',
-        f' flag_alf=1, parm_alf={alf},',
-        ' /'
-    ]
+    input_files = ['b2mn.dat', 'b2.transport.parameters']
+    for ifile in input_files:
+        output = []
+        with open(reference_directory + ifile) as f:
+            for line in f:
+                for v in variables:
+                    if '{'+v+'}' in line:
+                        line.replace('{'+v+'}', parameter_dictionary[v])
+                output.append(line)
 
-    # Write the list to a file
-    with open(filename, 'w') as f:
-        for item in sout:
-            f.write("%s\n" % item)
-
-
-
-
-
-
-def write_solps_b2mn_dat(
-    filename,
-    n_timestep,
-    d_timestep,
-    cflme=0.3,  # Multiplier to the electron heat flux limit
-    cflmi=1.0,  # Multiplier to the ion heat flux limit
-    cflmv=0.5,  # Multiplier to the viscous heat flux limit
-    cflal=0.5,  # Multilier to the thermo-electric coefficient flux limit
-    cflab=0.5,  #  Multiplier to the friction force flux limit
-    label='Gaussian process test case'
-):
-
-    sout = [
-        '*label          (lblmn: character*60)',
-        f"  '{label}'",
-        '*b2cmpa  basic parameters',
-        '*b2cmpb  boundary conditions',
-        '*b2cmpt  transport coefficients',
-        '*cflim    cflme    cflmi    cflmv     cflal     cflab',
-        f"  '-1'        {cflme}      {cflmi}      {cflmv}      {cflal}      {cflab}        0        0        0",
-        '*endphy',
-        f"'b2mndr_ntim'     '{n_timestep}'",
-        f"'b2mndr_dtim'     '{d_timestep}'",
-        "'b2mndt_nstg0'    '1'",
-        "'b2mndt_nstg1'    '1'",
-        "'b2mndt_nstg2'    '10'",
-        "'b2mndt_rxf'      '0.5'",
-        "'b2mndr_cpu'      '80000.0'",
-        "'b2mndr_savecpu'  '1000.0'",
-        "'b2mndr_stim'     '-5'",
-        "'b2mndr_b2time'   '10'",
-        "'b2stbc_boundary_namelist' '1'",
-        "'b2stbr_neutrals_namelist' '1'",
-        "'b2tqna_transport_namelist' '1'",
-        "'b2tqna_inputfile' '1'",
-        "'b2tqna_ballooning' '0'",
-        "'b2tqna_ballooning_rescale' '1'",
-        "'b2mndr_eirene'                   '1'",
-        "'b2mndr_rescale_neutrals_sources' '1e-20'",
-        "'b2sigp_style'			  '1'",
-        "'b2news_poteq'             '0'",
-        "'b2tfhe_no_current'        '1'",
-        "'b2trno_pol_anom_scale' '0.0'",
-        "'tallies_netcdf' '1'",
-        "'b2mndr_na_min' '1.0e10'",
-        "'balance_netcdf'  '1'",
-        "'balance_average'  '0'",
-        "'eirene_ionising_core'  '0'"
-    ]
-
-    # Write the list to a file
-    with open(filename, 'w') as f:
-        for item in sout:
-            f.write("%s\n" % item)
+        with open(case_directory + ifile, 'w') as f:
+            for item in output:
+                f.write("%s\n" % item)
 
 
 
@@ -203,16 +229,9 @@ def write_solps_b2mn_dat(
 
 
 def run_solps(
-    chi = None,
-    chi_r = None,
-    D = None,
-    D_r = None,
-    iteration = None,
-    dna = 1.0,
-    hci = 1.0,
-    hce = 1.0,
+    iteration=None,
     n_species = 1,
-    timeout_hours = 10,
+    timeout_hours=10,
     run_directory = None,
     set_div_transport = False,
     output_directory = None,
@@ -245,29 +264,33 @@ def run_solps(
     """
 
     # Write the SOLPS input files
-    write_solps_b2mn_dat(
-        run_directory+'b2mn.dat',
-        solps_n_timesteps,  # Number of timesteps
-        solps_dt,           # Timestep (s)
-        cflme=0.3,          # Multiplier to the electron heat flux limit
-        cflmi=1.0,          # Multiplier to the ion heat flux limit
-        cflmv=0.5,          # Multiplier to the viscous heat flux limit
-        cflal=0.5,          # Multilier to the thermo-electric coefficient flux limit
-        cflab=0.5,          #  Multiplier to the friction force flux limit
-        label='Gaussian process test case'
-    )
+    # write_solps_b2mn_dat(
+    #     run_directory+'b2mn.dat',
+    #     solps_n_timesteps,  # Number of timesteps
+    #     solps_dt,           # Timestep (s)
+    #     cflme=0.3,          # Multiplier to the electron heat flux limit
+    #     cflmi=1.0,          # Multiplier to the ion heat flux limit
+    #     cflmv=0.5,          # Multiplier to the viscous heat flux limit
+    #     cflal=0.5,          # Multilier to the thermo-electric coefficient flux limit
+    #     cflab=0.5,          #  Multiplier to the friction force flux limit
+    #     label='Gaussian process test case'
+    # )
+    #
+    # write_solps_transport_paramters(
+    #     run_directory+'b2.transport.parameters',
+    #     n_species,  # Number of species - should be in settings!
+    #     dna,
+    #     0,
+    #     0,
+    #     1.0,
+    #     hci,
+    #     hce,
+    #     0,
+    #     0
+    # )
 
-    write_solps_transport_paramters(
-        run_directory+'b2.transport.parameters',
-        n_species,  # Number of species - should be in settings!
-        dna,
-        0,
-        0,
-        1.0,
-        hci,
-        hce,
-        0,
-        0
+    build_solps_case(
+        reference_directory=
     )
 
     write_solps_transport_inputfile(
@@ -281,17 +304,18 @@ def run_solps(
         no_div=set_div_transport
     )
 
+
     # Go to the SOLPS run directory to prepare execution
     orig_dir = getcwd()
     chdir(run_directory)
 
-    # Check to see if b2fstate and b2fstati are different
-    test = filecmp.cmp(run_directory+'b2fstate',run_directory+'b2fstati')
-
-    if test is False:
-        # The initial and final states are different, set them to be the same
-        copystatefiles = subprocess.Popen('cp '+run_directory+'b2fstate '+run_directory+'b2fstati',stdout=subprocess.PIPE,shell=True)
-        copystatefiles.communicate()
+    # # Check to see if b2fstate and b2fstati are different
+    # test = filecmp.cmp(run_directory+'b2fstate',run_directory+'b2fstati')
+    #
+    # if test is False:
+    #     # The initial and final states are different, set them to be the same
+    #     copystatefiles = subprocess.Popen('cp '+run_directory+'b2fstate '+run_directory+'b2fstati',stdout=subprocess.PIPE,shell=True)
+    #     copystatefiles.communicate()
 
     findstr = 'Submitted batch job'
 
