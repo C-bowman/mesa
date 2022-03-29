@@ -152,6 +152,8 @@ def initial_sampling(settings_filepath):
             n_species=solps_n_species, set_div_transport=set_divertor_transport
         )
 
+        # TODO - LOOP BREAKS HERE
+
         if run_status == False:
             logging.info('[initial_sampling] Restoring SOLPS run directory from reference.')
             reset_solps(run_directory, ref_directory)
