@@ -38,27 +38,12 @@ diagnostics = [TS]
 #   SOLPS settings
 # ----------------------------------------------------------------------------
 
-# number of SOLPS time steps per iteration
-solps_n_timesteps = 3000
-
-# SOLPS time step
-solps_dt = 5.0E-5
-
 # Number of cores to execute SOLPS on
 solps_n_proc = 6
-
-# Number of optimiser iterations before cleaning the run directory
-solps_iter_reset = 5
 
 # Sets whether the divertor transport coefficients are overridden by those
 # used for the PFR
 set_divertor_transport = True
-
-# Number of species in SOLPS simulations
-solps_n_species = 9
-
-# Number of hours to leave SOLPS running before timing out
-solps_timeout_hours = 5
 
 # The range over which the transport coefficient profiles are defined
 transport_profile_bounds = (-0.1, 0.1)

@@ -1,12 +1,13 @@
 
-from os import getcwd, chdir
+from os import chdir
 from os.path import exists
 from time import sleep, time
 import logging
 import subprocess
-import filecmp
 from numpy import sum
 
+from mesa.models import linear_transport_profile, profile_radius_axis
+from mesa.parameters import conductivity_profile, diffusivity_profile
 from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
@@ -118,48 +119,47 @@ def build_solps_case(
 
 def run_solps(
     iteration,
-    timeout_hours=10,
-    run_directory=None,
+    reference_directory,
+    parameter_dictionary,
+    transport_profile_bounds,
     set_div_transport=False,
-    output_directory=None,
     n_proc=1
 ):
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
 
-    :param chi: \
-        Array of conductivity values corresponding to the the radial positions given in *chi_r*.
-
-    :param chi_r: \
-        Array of radial positions corresponding to the conductivity values given in *chi*.
-
-    :param D: \
-        Array of diffusivity values corresponding to the the radial positions given in *D_r*.
-
-    :param D_r: \
-        Array of radial positions corresponding to the diffusivity values given in *D*.
-
     :param int iteration: \
         The iteration number corresponding to the requested solps-run, used to name
         directory in which the solps output is stored.
 
-    :param int timeout_hours: \
-        The number of hours to wait for the solps run to complete before raising a
-        time-out error.
+    :param str reference_directory: \
+
     """
-    case_dir = run_directory + f"{run_id_string}_{iteration}/" # TODO
+    case_dir = reference_directory + f"{run_id_string}_{iteration}/" # TODO
+
     build_solps_case(
-        reference_directory=run_directory,
+        reference_directory=reference_directory,
         case_directory=case_dir,
-        parameter_dictionary=
+        parameter_dictionary=parameter_dictionary
     )
 
+    # produce transport profiles defined by new point
+    radius = profile_radius_axis(boundaries=transport_profile_bounds)
+
+    chi_params = [parameter_dictionary[k] for k in conductivity_profile]
+    chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
+
+    D_params = [parameter_dictionary[k] for k in diffusivity_profile]
+    D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
+
     write_solps_transport_inputfile(
-        run_directory+'b2.transport.inputfile',
-        n_species,
-        D_r,D,
-        chi_r,chi,
-        chi_r,chi,
+        filename=case_dir + 'b2.transport.inputfile',
+        grid_dperp=radius,
+        values_dperp=D,
+        grid_chieperp=radius,
+        values_chieperp=chi,
+        grid_chiiperp=radius,
+        values_chiiperp=chi,
         set_ana_visc_dperp=True,
         no_pflux=True,
         no_div=set_div_transport
@@ -172,17 +172,17 @@ def run_solps(
     findstr = 'Submitted batch job'
 
     if n_proc == 1:
-        start_run = subprocess.Popen('itmsubmit',stdout=subprocess.PIPE,shell=True)
+        start_run = subprocess.Popen('itmsubmit',stdout=subprocess.PIPE, shell=True)
     if n_proc > 1:
-        start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"',stdout=subprocess.PIPE,shell=True)
+        start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"', stdout=subprocess.PIPE, shell=True)
 
     start_run_output = start_run.communicate()[0]
-    chdir(run_directory)
+    chdir(reference_directory)
     # Find the batch job number
     tmp = str(start_run_output).find(findstr)
     jobstr = str(start_run_output)[tmp+len(findstr)+1:-3]
 
-    logging.info('[solps_interface] Submitted job '+jobstr)
+    logging.info(f'[solps_interface] Submitted job {jobstr}')
     return jobstr
 
 
@@ -196,7 +196,7 @@ def check_solps_run(job_ids, timeout_hours=10):
     timeout = time() + 3600*timeout_hours
 
     # wait for run completion
-    uname = subprocess.Popen('whoami',stdout=subprocess.PIPE,shell=True)
+    uname = subprocess.Popen('whoami',stdout=subprocess.PIPE, shell=True)
     username = uname.communicate()[0]
     username = str(username.rstrip(),'utf-8')
 
@@ -209,7 +209,7 @@ def check_solps_run(job_ids, timeout_hours=10):
 
     while True:
         if all(job_finished): # check if the job is still running
-            logging.info('[solps_interface] Job '+jobstr+' has finished')
+            logging.info(f'[solps_interface] Job {jobstr} has finished')
             break
         else:
             logging.debug('[solps_interface] Job '+jobstr+' is in progress...')
@@ -260,29 +260,6 @@ def check_solps_run(job_ids, timeout_hours=10):
         chdir(orig_dir)
 
         return False
-
-
-def reset_solps(run_directory, ref_directory):
-    """
-    Clears the contents of a SOLPS run directory and replaces it with the files from a reference
-    case. To be used if the optimiser has executed too many SOLPS runs that the run_directory
-    becomes too large.
-    """
-
-    orig_dir = getcwd()
-
-    # Go to the run directory
-    chdir(run_directory)
-
-    # Clear the contents of the run directory
-    test = subprocess.Popen('rm -rf *',stdout=subprocess.PIPE,shell=True)
-    jobqueue = test.communicate()[0]
-
-    # Copy the contents of the reference case
-    test = subprocess.Popen('cp '+ref_directory+'* .',stdout=subprocess.PIPE,shell=True)
-    jobqueue = test.communicate()[0]
-    
-    chdir(orig_dir)
 
 
 def cancel_solps(jobstr):

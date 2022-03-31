@@ -58,21 +58,13 @@ def initial_sampling(settings_filepath):
     logger_setup(settings_filepath)
 
     # data & results filepaths
-    run_directory = settings['solps_run_directory']
-    output_directory = settings['solps_output_directory']
-    ref_directory = settings['solps_ref_directory']
+    reference_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
     diagnostics = settings['diagnostics']
 
     # SOLPS settings
-    solps_n_timesteps = settings['solps_n_timesteps']
-    solps_dt = settings['solps_dt']
     solps_n_proc = settings['solps_n_proc']
-    solps_iter_reset = settings['solps_iter_reset']
-    solps_n_species = settings['solps_n_species']
-    solps_timeout_hours = settings['solps_timeout_hours']
     set_divertor_transport = settings['set_divertor_transport']
-    transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     fixed_parameter_values = settings['fixed_parameter_values']
@@ -84,7 +76,7 @@ def initial_sampling(settings_filepath):
     fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
 
     # first check if the training data file exists already, or needs to be created
-    if not isfile(output_directory + training_data_file):
+    if not isfile(reference_directory + training_data_file):
         # define what columns will be in the dataframe
         cols = [
             'iteration',
@@ -100,12 +92,12 @@ def initial_sampling(settings_filepath):
 
         # create the empty dataframe to store the training data and save it to HDF
         df = DataFrame(columns=cols)
-        df.to_hdf(output_directory + training_data_file, key='training', mode='w')
+        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')
         del df
 
     # loop until enough samples have been evaluated
     while True:
-        df = read_hdf(output_directory + training_data_file, 'training')
+        df = read_hdf(reference_directory + training_data_file, 'training')
 
         # get the current iteration number
         i = 1 if df['iteration'].size == 0 else df['iteration'].max() + 1
@@ -124,32 +116,21 @@ def initial_sampling(settings_filepath):
         for key in free_parameters:
             row_dict[key] = uniform_sample(optimisation_bounds[key])
 
-        # produce transport profiles defined by new point
-        radius = profile_radius_axis(boundaries=transport_profile_bounds)
-
-        chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
-
-        D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
-        dna = row_dict['D_div']
-        hc  = row_dict['chi_div']
-
         logging.info(f"--- Starting iteration {i} ---")
         logging.info('New chi parameters:')
-        logging.info(chi_params)
+        logging.info([row_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
-        logging.info(D_params)
+        logging.info([row_dict[k] for k in diffusivity_profile])
         logging.info('Divertor parameters:')
-        logging.info([dna, hc])
+        logging.info([row_dict['D_div'], row_dict['chi_div']])
 
         # Run SOLPS for the new point
         run_status = run_solps(
-            chi=chi, chi_r=radius, D=D, D_r=radius, iteration=i, dna=dna, hci=hc,
-            hce=hc, run_directory=run_directory, output_directory=output_directory,
-            solps_n_timesteps=solps_n_timesteps, solps_dt=solps_dt,
-            timeout_hours=solps_timeout_hours, n_proc=solps_n_proc,
-            n_species=solps_n_species, set_div_transport=set_divertor_transport
+            iteration=i,
+            parameter_dictionary=row_dict,
+            reference_directory=reference_directory,
+            n_proc=solps_n_proc,
+            set_div_transport=set_divertor_transport
         )
 
         # TODO - LOOP BREAKS HERE
@@ -163,7 +144,7 @@ def initial_sampling(settings_filepath):
         # evaluate the log-probabilities
         logprobs = evaluate_log_posterior(
             iteration=i,
-            directory=output_directory,
+            directory=reference_directory,
             diagnostics=diagnostics
         )
 
@@ -181,9 +162,6 @@ def initial_sampling(settings_filepath):
 
         df.loc[i] = row_dict  # add the new row
         df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data
-
-        if i % solps_iter_reset == 0:
-            reset_solps(run_directory, ref_directory)
 
 
 def optimizer(settings_filepath):
@@ -380,7 +358,7 @@ def optimizer(settings_filepath):
         # Run SOLPS for the new point
         run_status = run_solps(
             chi=chi, chi_r=radius, D=D, D_r=radius, iteration=i, dna=dna, hci=hc,
-            hce=hc, run_directory=run_directory, output_directory=output_directory,
+            hce=hc, reference_directory=run_directory, output_directory=output_directory,
             solps_n_timesteps=solps_n_timesteps, solps_dt=solps_dt,
             timeout_hours=solps_timeout_hours, n_proc=solps_n_proc,
             n_species=solps_n_species, set_div_transport=set_divertor_transport
@@ -566,7 +544,7 @@ def random_search(settings_filepath):
             dna=dna,
             hci=hc,
             hce=hc,
-            run_directory=run_directory,
+            reference_directory=run_directory,
             output_directory=output_directory,
             solps_n_timesteps=solps_n_timesteps,
             solps_dt=solps_dt,
