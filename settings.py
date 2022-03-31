@@ -4,14 +4,8 @@
 #   directory settings
 # ----------------------------------------------------------------------------
 
-# directory where the SOLPS runs are stored
-solps_run_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/gpfit/'
-
 # directory where a reference SOLPS run is stored
 solps_ref_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/ref_clean/'
-
-# directory where the SOLPS output data and training data are stored
-solps_output_directory = '/pfs/work/g2hjame/solpsopt_runs/tcv_58196_1.2s/'
 
 # file name in which the training data will be stored
 training_data_file = 'training_data.h5'
@@ -48,6 +42,11 @@ set_divertor_transport = True
 # The range over which the transport coefficient profiles are defined
 transport_profile_bounds = (-0.1, 0.1)
 
+# the number of SOLPS runs which will be launched in parallel during initial sampling
+concurrent_runs = 10
+
+# Number of hours after which a SOLPS run will be automatically cancelled
+solps_timeout_hours = 24
 
 
 # ----------------------------------------------------------------------------

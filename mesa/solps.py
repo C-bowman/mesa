@@ -117,7 +117,7 @@ def build_solps_case(
 
 
 
-def run_solps(
+def launch_solps(
     iteration,
     reference_directory,
     parameter_dictionary,
@@ -180,95 +180,44 @@ def run_solps(
     chdir(reference_directory)
     # Find the batch job number
     tmp = str(start_run_output).find(findstr)
-    jobstr = str(start_run_output)[tmp+len(findstr)+1:-3]
+    job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
 
-    logging.info(f'[solps_interface] Submitted job {jobstr}')
-    return jobstr
+    logging.info(f'[solps_interface] Submitted job {job_id}')
+    return job_id
 
 
-def check_solps_run(job_ids, timeout_hours=10):
+def check_solps_run(job_id):
     """
+    Given a job id string, returns a bool indicating whether a
+    SOLPS run has completed or not.
 
-    :param job_ids: \
-        list of job id strings
+    :param job_id: \
+        job id string
+
+    :return: \
+        Returns ``True`` if the SOLPS run has finished, and ``False`` otherwise.
     """
     # set a time-out point
-    timeout = time() + 3600*timeout_hours
 
     # wait for run completion
-    uname = subprocess.Popen('whoami',stdout=subprocess.PIPE, shell=True)
+    uname = subprocess.Popen('whoami', stdout=subprocess.PIPE, shell=True)
     username = uname.communicate()[0]
-    username = str(username.rstrip(),'utf-8')
+    username = str(username.rstrip(), 'utf-8')
 
-    test = subprocess.Popen('squeue -u '+username,stdout=subprocess.PIPE,shell=True)
+    test = subprocess.Popen('squeue -u '+username, stdout=subprocess.PIPE, shell=True)
     jobqueue = test.communicate()[0]
 
-    job_finished = [job not in str(jobqueue) for job in job_ids]
-
-    if all(job_finished):
-
-    while True:
-        if all(job_finished): # check if the job is still running
-            logging.info(f'[solps_interface] Job {jobstr} has finished')
-            break
-        else:
-            logging.debug('[solps_interface] Job '+jobstr+' is in progress...')
-
-        if time() > timeout: # check to see if we've timed out
-            #raise TimeoutError('No SOLPS output file was detected within the time-out limit')
-            logging.warning('[solps_interface] No SOLPS output file was detected within the time-out limit')
-            cancel_solps(jobstr) # TODO - make this work on a list of job id's
-            break
-
-        sleep(30) # wait for 30 seconds between checks
-
-        test = subprocess.Popen('squeue -u '+username, stdout=subprocess.PIPE, shell=True)
-        jobqueue = test.communicate()[0]
-        job_finished = str(jobqueue).find(jobstr)
-
-    # Run this when SOLPS has finished
-    # build the path of the solps output file
-    output_path = run_directory + 'balance.nc'
-    new_output_path = output_directory + 'solps_run_{}.nc'.format(int(iteration))
+    job_finished = job_id not in str(jobqueue)
+    return job_finished
 
 
-    # TODO - replace this with a check to see if balance file is actually there
-    if exists(output_path):
-        logging.info('[solps_interface] SOLPS run completed successfully.')
-        # copy the SOLPS output to the solps_output_directory
-        copyoutputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
-        copyoutputfiles.communicate()
-
-        # zip up the SOLPS input files
-        input_files = 'b2mn.dat b2ah.dat input.dat b2.transport.parameters b2.boundary.parameters b2.neutrals.parameters b2.transport.inputfile'
-
-        zipinputfiles = subprocess.Popen('zip input_files.zip '+input_files,stdout=subprocess.PIPE,shell=True)
-        zipinputfiles.communicate()
-
-        # Then copy the SOLPS input files to the solps_output directory
-        output_path = run_directory + 'input_files.zip'
-        new_output_path = output_directory + 'solps_input_files_{}.zip'.format(int(iteration))
-        copyinputfiles = subprocess.Popen('cp '+output_path+' '+new_output_path,stdout=subprocess.PIPE,shell=True)
-        copyinputfiles.communicate()
-
-        chdir(orig_dir)
-
-        return True
-    else:
-        logging.warning('[solps_interface] SOLPS run failed.')
-
-        chdir(orig_dir)
-
-        return False
-
-
-def cancel_solps(jobstr):
+def cancel_solps(job_id):
     """
     Cancels a SOLPS run in case of a timeout or other error.  An output file is not written
     by SOLPS, so solps_interface knows the code ended with an error
     """
 
-    test = subprocess.Popen('scancel '+jobstr,stdout=subprocess.PIPE,shell=True)
+    test = subprocess.Popen('scancel ' + job_id, stdout=subprocess.PIPE, shell=True)
     comm = test.communicate()[0]
 
 

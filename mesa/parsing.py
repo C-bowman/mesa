@@ -5,19 +5,13 @@ import logging
 
 input_variables = [
 # directory settings
-    'solps_run_directory',
     'solps_ref_directory',
-    'solps_output_directory',
     'training_data_file',
 # synthetic diagnostic objects
     'diagnostics',
 # SOLPS settings
-    'solps_n_timesteps',
-    'solps_dt',
     'solps_n_proc',
-    'solps_iter_reset',
     'set_divertor_transport',
-    'solps_n_species',
     'solps_timeout_hours',
     'transport_profile_bounds',
 # gaussian-process regression settings

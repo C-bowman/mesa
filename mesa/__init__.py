@@ -8,12 +8,13 @@ from numpy import array, log
 from numpy.random import random
 from pandas import DataFrame, read_hdf
 
+from time import time
 from os.path import isfile
 import logging
 
 from mesa.parsing import parse_inputs, check_dependencies, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.solps import run_solps, evaluate_log_posterior, reset_solps
+from mesa.solps import launch_solps, evaluate_log_posterior, reset_solps
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
 from inference.gp import GpOptimiser, GpRegressor
@@ -65,6 +66,7 @@ def initial_sampling(settings_filepath):
     # SOLPS settings
     solps_n_proc = settings['solps_n_proc']
     set_divertor_transport = settings['set_divertor_transport']
+    concurrent_runs = settings['concurrent_runs']
 
     # optimiser settings
     fixed_parameter_values = settings['fixed_parameter_values']
@@ -76,7 +78,21 @@ def initial_sampling(settings_filepath):
     fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
 
     # first check if the training data file exists already, or needs to be created
-    if not isfile(reference_directory + training_data_file):
+    if isfile(reference_directory + training_data_file):
+        df = read_hdf(reference_directory + training_data_file, 'training')
+        current_iterations = 0 if df['iteration'].size == 0 else df['iteration'].max()
+        if current_iterations >= initial_sample_count:
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> An initial sampling count of {initial_sample_count} was specified
+                >> in the settings file, but the training data file
+                >> already contains {current_iterations} iterations.
+                """
+            )
+        # build a queue of the additional iterations which are required
+        iteration_queue = [i for i in range(current_iterations + 1, initial_sample_count + 1)][::-1]
+    else:
         # define what columns will be in the dataframe
         cols = [
             'iteration',
@@ -94,52 +110,64 @@ def initial_sampling(settings_filepath):
         df = DataFrame(columns=cols)
         df.to_hdf(reference_directory + training_data_file, key='training', mode='w')
         del df
+        iteration_queue = [i for i in range(1, initial_sample_count + 1)][::-1]
 
     # loop until enough samples have been evaluated
-    while True:
-        df = read_hdf(reference_directory + training_data_file, 'training')
+    current_runs = {}
+    while len(iteration_queue) > 0:
 
-        # get the current iteration number
-        i = 1 if df['iteration'].size == 0 else df['iteration'].max() + 1
+        # if the current number of runs is less than the allowed
+        # maximum, then launch another
+        if len(current_runs) < concurrent_runs:
+            df = read_hdf(reference_directory + training_data_file, 'training')
+            i = iteration_queue.pop()
 
-        # break the loop if we've hit the desired number of initial samples
-        if i > initial_sample_count: break
+            # create the dictionary for this iteration
+            row_dict = {}
+            # add values for all the fixed parameters
+            for key in fixed_parameters:
+                row_dict[key] = fixed_parameter_values[key]
+            # sample values for all the free parameters
+            for key in free_parameters:
+                row_dict[key] = uniform_sample(optimisation_bounds[key])
 
-        # create the dictionary for this iteration
-        row_dict = {}
+            logging.info(f"--- Starting iteration {i} ---")
+            logging.info('New chi parameters:')
+            logging.info([row_dict[k] for k in conductivity_profile])
+            logging.info('New D parameters:')
+            logging.info([row_dict[k] for k in diffusivity_profile])
+            logging.info('Divertor parameters:')
+            logging.info([row_dict['D_div'], row_dict['chi_div']])
 
-        # add values for all the fixed parameters
-        for key in fixed_parameters:
-            row_dict[key] = fixed_parameter_values[key]
+            # Run SOLPS for the new point
+            run_id = launch_solps(
+                iteration=i,
+                parameter_dictionary=row_dict,
+                reference_directory=reference_directory,
+                n_proc=solps_n_proc,
+                set_div_transport=set_divertor_transport
+            )
+            launch_time = time()
 
-        # sample values for all the free parameters
-        for key in free_parameters:
-            row_dict[key] = uniform_sample(optimisation_bounds[key])
+            # store the iteration, launch time and parameters for the new run
+            current_runs[run_id] = (i, launch_time, row_dict)
 
-        logging.info(f"--- Starting iteration {i} ---")
-        logging.info('New chi parameters:')
-        logging.info([row_dict[k] for k in conductivity_profile])
-        logging.info('New D parameters:')
-        logging.info([row_dict[k] for k in diffusivity_profile])
-        logging.info('Divertor parameters:')
-        logging.info([row_dict['D_div'], row_dict['chi_div']])
+        """
+        loop over each key in the current runs, check if the job is done
+        if it is done:
+            > evaluate the posterior and add the new row to the dataframe
+            > remove the run from the dictionary
+        else:
+            > check if the run has timed out
+            > if it has:
+                > cancel the run
+                > remove the run from the dictionary
+                > delete the run directory
+                > append the iteration number back onto the queue
+        
+        sleep for 30s (only if we're at max jobs?)
+        """
 
-        # Run SOLPS for the new point
-        run_status = run_solps(
-            iteration=i,
-            parameter_dictionary=row_dict,
-            reference_directory=reference_directory,
-            n_proc=solps_n_proc,
-            set_div_transport=set_divertor_transport
-        )
-
-        # TODO - LOOP BREAKS HERE
-
-        if run_status == False:
-            logging.info('[initial_sampling] Restoring SOLPS run directory from reference.')
-            reset_solps(run_directory, ref_directory)
-            logging.info('[initial_sampling] Restoration complete, trying new run...')
-            continue
 
         # evaluate the log-probabilities
         logprobs = evaluate_log_posterior(
@@ -161,7 +189,7 @@ def initial_sampling(settings_filepath):
         row_dict['convergence_metric'] = None
 
         df.loc[i] = row_dict  # add the new row
-        df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data
+        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
 
 
 def optimizer(settings_filepath):
@@ -356,7 +384,7 @@ def optimizer(settings_filepath):
         logging.info([dna, hc])
 
         # Run SOLPS for the new point
-        run_status = run_solps(
+        run_status = launch_solps(
             chi=chi, chi_r=radius, D=D, D_r=radius, iteration=i, dna=dna, hci=hc,
             hce=hc, reference_directory=run_directory, output_directory=output_directory,
             solps_n_timesteps=solps_n_timesteps, solps_dt=solps_dt,
@@ -535,7 +563,7 @@ def random_search(settings_filepath):
         logging.info([dna, hc])
 
         # Run SOLPS for the new point
-        run_status = run_solps(
+        run_status = launch_solps(
             chi=chi,
             chi_r=radius,
             D=D,
