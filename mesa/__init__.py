@@ -69,6 +69,7 @@ def initial_sampling(settings_filepath):
     set_divertor_transport = settings['set_divertor_transport']
     concurrent_runs = settings['concurrent_runs']
     solps_timeout_hours = settings['solps_timeout_hours']
+    transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     fixed_parameter_values = settings['fixed_parameter_values']
@@ -143,8 +144,9 @@ def initial_sampling(settings_filepath):
             # Run SOLPS for the new point
             run_id, run_dir = launch_solps(
                 iteration=i,
-                parameter_dictionary=row_dict,
                 reference_directory=reference_directory,
+                parameter_dictionary=row_dict,
+                transport_profile_bounds=transport_profile_bounds,
                 n_proc=solps_n_proc,
                 set_div_transport=set_divertor_transport
             )
@@ -217,25 +219,18 @@ def optimizer(settings_filepath):
     logger_setup(settings_filepath)
 
     # data & results filepaths
-    run_directory = settings['solps_run_directory']
-    ref_directory = settings['solps_ref_directory']
-    output_directory = settings['solps_output_directory']
+    reference_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
     diagnostics = settings['diagnostics']
 
     # SOLPS settings
-    solps_n_species = settings['solps_n_species']
-    solps_n_timesteps = settings['solps_n_timesteps']
-    solps_dt = settings['solps_dt']
     solps_n_proc = settings['solps_n_proc']
-    solps_iter_reset = settings['solps_iter_reset']
     set_divertor_transport = settings['set_divertor_transport']
     solps_timeout_hours = settings['solps_timeout_hours']
     transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     max_iterations = settings['max_iterations']
-    initial_sample_count = settings['initial_sample_count']
     fixed_parameter_values = settings['fixed_parameter_values']
     optimisation_bounds = settings['optimisation_bounds']
     acquisition_function = settings['acquisition_function']
@@ -255,15 +250,15 @@ def optimizer(settings_filepath):
     # start the optimisation loop
     while True:
         # load the training data
-        df = read_hdf(output_directory + training_data_file, 'training')
+        df = read_hdf(reference_directory + training_data_file, 'training')
         # break the loop if we've hit the max number of iterations
         if df['iteration'].max() >= max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
             break
 
         # get the current iteration number
-        i = df['iteration'].max()+1
-        logging.info(f"--- Starting iteration {i} ---")
+        itr = df['iteration'].max()+1
+        logging.info(f"--- Starting iteration {itr} ---")
 
         # extract the training data
         logprob_key = check_error_model(error_model)
@@ -312,7 +307,7 @@ def optimizer(settings_filepath):
             max_point = normalised_parameters[max_ind]
             search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
         else:
-            search_bounds = [(0.,1.) for i in range(len(free_parameters))]
+            search_bounds = [(0., 1.) for i in range(len(free_parameters))]
 
         # build the GP-optimiser
         covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
@@ -371,50 +366,40 @@ def optimizer(settings_filepath):
                 """
             )
 
-        # produce transport profiles defined by new point
-        radius = profile_radius_axis(boundaries=transport_profile_bounds)
-
-        chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
-
-        D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
-        dna = row_dict['D_div']
-        hc  = row_dict['chi_div']
-
         logging.info('New chi parameters:')
-        logging.info(chi_params)
+        logging.info([row_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
-        logging.info(D_params)
+        logging.info([row_dict[k] for k in diffusivity_profile])
         logging.info('Divertor parameters:')
-        logging.info([dna, hc])
+        logging.info([row_dict['D_div'], row_dict['chi_div']])
 
         # Run SOLPS for the new point
-        run_status = launch_solps(
-            chi=chi, chi_r=radius, D=D, D_r=radius, iteration=i, dna=dna, hci=hc,
-            hce=hc, reference_directory=run_directory, output_directory=output_directory,
-            solps_n_timesteps=solps_n_timesteps, solps_dt=solps_dt,
-            timeout_hours=solps_timeout_hours, n_proc=solps_n_proc,
-            n_species=solps_n_species, set_div_transport=set_divertor_transport
+        run_id, run_dir = launch_solps(
+            iteration=itr,
+            reference_directory=reference_directory,
+            parameter_dictionary=row_dict,
+            transport_profile_bounds=transport_profile_bounds,
+            n_proc=solps_n_proc,
+            set_div_transport=set_divertor_transport
         )
 
-        if run_status == False:
-            logging.info('[optimiser] Restoring SOLPS run directory from reference.')
-            reset_solps(run_directory, ref_directory)
-            logging.info('[optimiser] Restoration complete, trying new run...')
-            continue
+        launch_time = time()
+        while not solps_run_complete(run_id):
+            runtime_hours = (time() - launch_time) / 3600
+            if runtime_hours >= solps_timeout_hours:
+                logging.info("[ time-out warning ]")
+                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
-            iteration=i,
-            directory=output_directory,
+            directory=run_dir,
             diagnostics=diagnostics
         )
 
         gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
         # build a new row for the dataframe
-        row_dict['iteration'] = i
+        row_dict['iteration'] = itr
         row_dict['gaussian_logprob'] = gaussian_logprob
         row_dict['cauchy_logprob'] = cauchy_logprob
         row_dict['laplace_logprob'] = laplace_logprob
@@ -424,11 +409,8 @@ def optimizer(settings_filepath):
         row_dict['convergence_metric'] = convergence
 
         df.loc[df.index.max()+1] = row_dict  # add the new row
-        df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data
+        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
         del df
-
-        if i % solps_iter_reset == 0:
-            reset_solps(run_directory, ref_directory)
 
 
 
@@ -454,34 +436,23 @@ def random_search(settings_filepath):
     logger_setup(settings_filepath)
 
     # data & results filepaths
-    run_directory = settings['solps_run_directory']
-    ref_directory = settings['solps_ref_directory']
-    output_directory = settings['solps_output_directory']
+    reference_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
     diagnostics = settings['diagnostics']
 
     # SOLPS settings
-    solps_n_species = settings['solps_n_species']
-    solps_n_timesteps = settings['solps_n_timesteps']
-    solps_dt = settings['solps_dt']
     solps_n_proc = settings['solps_n_proc']
-    solps_iter_reset = settings['solps_iter_reset']
     set_divertor_transport = settings['set_divertor_transport']
     solps_timeout_hours = settings['solps_timeout_hours']
     transport_profile_bounds = settings['transport_profile_bounds']
 
     # optimiser settings
     max_iterations = settings['max_iterations']
-    initial_sample_count = settings['initial_sample_count']
     fixed_parameter_values = settings['fixed_parameter_values']
     optimisation_bounds = settings['optimisation_bounds']
-    acquisition_function = settings['acquisition_function']
-    cross_validation = settings['cross_validation']
     error_model = settings['error_model']
-    covariance_kernel_class = settings['covariance_kernel']
     trust_region = settings['trust_region']
     trust_region_width = settings['trust_region_width']
-    log_scale_bounds = settings['log_scale_bounds']
 
 
     all_parameters = [key for key in fixed_parameter_values.keys()]
@@ -492,15 +463,15 @@ def random_search(settings_filepath):
     # start the optimisation loop
     while True:
         # load the training data
-        df = read_hdf(output_directory + training_data_file, 'training')
+        df = read_hdf(reference_directory + training_data_file, 'training')
         # break the loop if we've hit the max number of iterations
         if df['iteration'].max() >= max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
             break
 
         # get the current iteration number
-        i = df['iteration'].max()+1
-        logging.info(f"--- Starting iteration {i} ---")
+        itr = df['iteration'].max() + 1
+        logging.info(f"--- Starting iteration {itr} ---")
 
         # extract the training data
         logprob_key = check_error_model(error_model)
@@ -525,7 +496,7 @@ def random_search(settings_filepath):
             max_point = normalised_parameters[max_ind]
             search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
         else:
-            search_bounds = [(0.,1.) for i in range(len(free_parameters))]
+            search_bounds = [(0., 1.) for i in range(len(free_parameters))]
 
 
         new_point = array([a + random()*(b-a) for a,b in search_bounds])
@@ -550,41 +521,20 @@ def random_search(settings_filepath):
         for key, val in zip(free_parameters, new_parameters):
             row_dict[key] = val
 
-        # produce transport profiles defined by new point
-        radius = profile_radius_axis(boundaries=transport_profile_bounds)
-
-        chi_params = [row_dict[k] for k in conductivity_profile]
-        chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
-
-        D_params = [row_dict[k] for k in diffusivity_profile]
-        D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
-        dna = row_dict['D_div']
-        hc  = row_dict['chi_div']
-
         logging.info('New chi parameters:')
-        logging.info(chi_params)
+        logging.info([row_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
-        logging.info(D_params)
+        logging.info([row_dict[k] for k in diffusivity_profile])
         logging.info('Divertor parameters:')
-        logging.info([dna, hc])
+        logging.info([row_dict['D_div'], row_dict['chi_div']])
 
         # Run SOLPS for the new point
-        run_status = launch_solps(
-            chi=chi,
-            chi_r=radius,
-            D=D,
-            D_r=radius,
-            iteration=i,
-            dna=dna,
-            hci=hc,
-            hce=hc,
-            reference_directory=run_directory,
-            output_directory=output_directory,
-            solps_n_timesteps=solps_n_timesteps,
-            solps_dt=solps_dt,
-            timeout_hours=solps_timeout_hours,
+        run_id, run_dir = launch_solps(
+            iteration=itr,
+            reference_directory=reference_directory,
+            parameter_dictionary=row_dict,
+            transport_profile_bounds=transport_profile_bounds,
             n_proc=solps_n_proc,
-            n_species=solps_n_species,
             set_div_transport=set_divertor_transport
         )
 
