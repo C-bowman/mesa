@@ -8,13 +8,14 @@ from numpy import array, log
 from numpy.random import random
 from pandas import DataFrame, read_hdf
 
-from time import time
+import subprocess
+from time import time, sleep
 from os.path import isfile
 import logging
 
 from mesa.parsing import parse_inputs, check_dependencies, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.solps import launch_solps, evaluate_log_posterior, reset_solps
+from mesa.solps import launch_solps, evaluate_log_posterior, solps_run_complete, cancel_solps
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
 from inference.gp import GpOptimiser, GpRegressor
@@ -67,6 +68,7 @@ def initial_sampling(settings_filepath):
     solps_n_proc = settings['solps_n_proc']
     set_divertor_transport = settings['set_divertor_transport']
     concurrent_runs = settings['concurrent_runs']
+    solps_timeout_hours = settings['solps_timeout_hours']
 
     # optimiser settings
     fixed_parameter_values = settings['fixed_parameter_values']
@@ -119,7 +121,6 @@ def initial_sampling(settings_filepath):
         # if the current number of runs is less than the allowed
         # maximum, then launch another
         if len(current_runs) < concurrent_runs:
-            df = read_hdf(reference_directory + training_data_file, 'training')
             i = iteration_queue.pop()
 
             # create the dictionary for this iteration
@@ -140,7 +141,7 @@ def initial_sampling(settings_filepath):
             logging.info([row_dict['D_div'], row_dict['chi_div']])
 
             # Run SOLPS for the new point
-            run_id = launch_solps(
+            run_id, run_dir = launch_solps(
                 iteration=i,
                 parameter_dictionary=row_dict,
                 reference_directory=reference_directory,
@@ -150,46 +151,51 @@ def initial_sampling(settings_filepath):
             launch_time = time()
 
             # store the iteration, launch time and parameters for the new run
-            current_runs[run_id] = (i, launch_time, row_dict)
+            current_runs[run_id] = (i, launch_time, run_dir, row_dict)
 
-        """
-        loop over each key in the current runs, check if the job is done
-        if it is done:
-            > evaluate the posterior and add the new row to the dataframe
-            > remove the run from the dictionary
-        else:
-            > check if the run has timed out
-            > if it has:
-                > cancel the run
-                > remove the run from the dictionary
-                > delete the run directory
-                > append the iteration number back onto the queue
-        
-        sleep for 30s (only if we're at max jobs?)
-        """
+        # loop through all currently running jobs to check if
+        # they have finished or timed-out
+        for run_id, run_data in current_runs.items():
+            itr, launch_time, run_dir, row_dict = run_data
+            runtime_hours = (launch_time - time()) / 3600
 
+            if solps_run_complete(run_id):
+                # evaluate the log-probabilities
+                logprobs = evaluate_log_posterior(
+                    directory=run_dir,
+                    diagnostics=diagnostics
+                )
 
-        # evaluate the log-probabilities
-        logprobs = evaluate_log_posterior(
-            iteration=i,
-            directory=reference_directory,
-            diagnostics=diagnostics
-        )
+                gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
-        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
+                # build a new row for the dataframe
+                row_dict['iteration'] = itr
+                row_dict['gaussian_logprob'] = gaussian_logprob
+                row_dict['cauchy_logprob'] = cauchy_logprob
+                row_dict['laplace_logprob'] = laplace_logprob
+                row_dict['logistic_logprob'] = logistic_logprob
+                row_dict['prediction_mean'] = None
+                row_dict['prediction_error'] = None
+                row_dict['convergence_metric'] = None
 
-        # build a new row for the dataframe
-        row_dict['iteration'] = i
-        row_dict['gaussian_logprob'] = gaussian_logprob
-        row_dict['cauchy_logprob'] = cauchy_logprob
-        row_dict['laplace_logprob'] = laplace_logprob
-        row_dict['logistic_logprob'] = logistic_logprob
-        row_dict['prediction_mean'] = None
-        row_dict['prediction_error'] = None
-        row_dict['convergence_metric'] = None
+                df = read_hdf(reference_directory + training_data_file, 'training')
+                df.loc[itr] = row_dict  # add the new row
+                df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
 
-        df.loc[i] = row_dict  # add the new row
-        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
+                # now the run results are saved we can stop tracking the run
+                current_runs.pop(run_id)
+
+            elif runtime_hours >= solps_timeout_hours:
+                logging.info("[ time-out warning ]")
+                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
+                cancel_solps(run_id)  # cancel the timed-out job
+                current_runs.pop(run_id)  # remove it from the current runs
+                subprocess.run(["rm", "-r", run_dir])  # remove its run directory
+                iteration_queue.append(itr)  # add the iteration number back to the queue
+
+        # if we're already at maximum concurrent runs, pause for a bit before re-checking
+        if len(current_runs) == concurrent_runs:
+            sleep(30)
 
 
 def optimizer(settings_filepath):

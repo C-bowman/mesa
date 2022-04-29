@@ -1,7 +1,4 @@
-
 from os import chdir
-from os.path import exists
-from time import sleep, time
 import logging
 import subprocess
 from numpy import sum
@@ -135,7 +132,7 @@ def launch_solps(
     :param str reference_directory: \
 
     """
-    case_dir = reference_directory + f"{run_id_string}_{iteration}/" # TODO
+    case_dir = reference_directory + f"iteration_{iteration}/"
 
     build_solps_case(
         reference_directory=reference_directory,
@@ -172,7 +169,7 @@ def launch_solps(
     findstr = 'Submitted batch job'
 
     if n_proc == 1:
-        start_run = subprocess.Popen('itmsubmit',stdout=subprocess.PIPE, shell=True)
+        start_run = subprocess.Popen("itmsubmit", stdout=subprocess.PIPE, shell=True)
     if n_proc > 1:
         start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"', stdout=subprocess.PIPE, shell=True)
 
@@ -183,10 +180,10 @@ def launch_solps(
     job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
 
     logging.info(f'[solps_interface] Submitted job {job_id}')
-    return job_id
+    return job_id, case_dir
 
 
-def check_solps_run(job_id):
+def solps_run_complete(job_id):
     """
     Given a job id string, returns a bool indicating whether a
     SOLPS run has completed or not.
@@ -221,26 +218,19 @@ def cancel_solps(job_id):
     comm = test.communicate()[0]
 
 
-def evaluate_log_posterior(diagnostics, iteration=None, directory=None):
+def evaluate_log_posterior(diagnostics, directory=None):
     """
     :param list diagnostics: \
         A list of instrument objects from ``sims.instruments``.
 
-    :param int iteration: \
-        iteration number of the solps run for which the posterior log-probability is calculated.
-
     :param str directory: \
-        Path to the directory in which the solps results, diagnostic data and training data
-        are stored.
-
-    :param str diagnostic_data_file: \
-        File name of the diagnostic data file.
+        Path to the directory in which the solps results are stored.
 
     :return: The posterior log-probability
     """
 
     # build the path of the solps output file
-    solps_path = directory + 'solps_run_{}.nc'.format(int(iteration))
+    solps_path = directory + 'balance.nc'  # TODO - make sure this file name is right
 
     # read the SOLPS data
     solps_data = SolpsInterface(solps_path)
