@@ -389,6 +389,7 @@ def optimizer(settings_filepath):
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
                 logging.info(f">> iteration {itr}, job {run_id} has timed-out")
+            sleep(10)
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
@@ -496,7 +497,7 @@ def random_search(settings_filepath):
             max_point = normalised_parameters[max_ind]
             search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
         else:
-            search_bounds = [(0., 1.) for i in range(len(free_parameters))]
+            search_bounds = [(0., 1.) for _ in range(len(free_parameters))]
 
 
         new_point = array([a + random()*(b-a) for a,b in search_bounds])
@@ -538,23 +539,24 @@ def random_search(settings_filepath):
             set_div_transport=set_divertor_transport
         )
 
-        if run_status == False:
-            logging.info('[optimiser] Restoring SOLPS run directory from reference.')
-            reset_solps(run_directory, ref_directory)
-            logging.info('[optimiser] Restoration complete, trying new run...')
-            continue
+        launch_time = time()
+        while not solps_run_complete(run_id):
+            runtime_hours = (time() - launch_time) / 3600
+            if runtime_hours >= solps_timeout_hours:
+                logging.info("[ time-out warning ]")
+                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
+            sleep(10)
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
-            iteration=i,
-            directory=output_directory,
+            iteration=itr,
             diagnostics=diagnostics
         )
 
         gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
 
         # build a new row for the dataframe
-        row_dict['iteration'] = i
+        row_dict['iteration'] = itr
         row_dict['gaussian_logprob'] = gaussian_logprob
         row_dict['cauchy_logprob'] = cauchy_logprob
         row_dict['laplace_logprob'] = laplace_logprob
@@ -564,8 +566,5 @@ def random_search(settings_filepath):
         row_dict['convergence_metric'] = convergence
 
         df.loc[df.index.max()+1] = row_dict  # add the new row
-        df.to_hdf(output_directory + training_data_file, key='training', mode='w')  # save the data
+        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
         del df
-
-        if i % solps_iter_reset == 0:
-            reset_solps(run_directory, ref_directory)
