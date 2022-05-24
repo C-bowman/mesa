@@ -13,7 +13,7 @@ from time import time, sleep
 from os.path import isfile
 import logging
 
-from mesa.parsing import parse_inputs, check_dependencies, logger_setup, check_error_model
+from mesa.parsing import parse_inputs, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
 from mesa.solps import launch_solps, evaluate_log_posterior, solps_run_complete, cancel_solps
 from mesa.parameters import conductivity_profile, diffusivity_profile
@@ -48,13 +48,9 @@ def initial_sampling(settings_filepath):
     space to create a set of initial training data for the GP.
 
     :param settings_filepath: The path to the settings file.
-    :return:
     """
     # check the validity of the input file and return its contents
     settings = parse_inputs(settings_filepath)
-
-    # Check other data files are present
-    check_dependencies(settings, skip_training=True)
 
     # set-up the log file
     logger_setup(settings_filepath)
@@ -210,10 +206,7 @@ def optimizer(settings_filepath):
     """
 
     # check the validity of the input file and return its contents
-    settings = parse_inputs(settings_filepath)
-
-    # Check other data files are present
-    check_dependencies(settings)
+    settings = parse_inputs(settings_filepath, check_training_data=True)
 
     # set-up the log file
     logger_setup(settings_filepath)
@@ -428,10 +421,7 @@ def random_search(settings_filepath):
     """
 
     # check the validity of the input file and return its contents
-    settings = parse_inputs(settings_filepath)
-
-    # Check other data files are present
-    check_dependencies(settings)
+    settings = parse_inputs(settings_filepath, check_training_data=True)
 
     # set-up the log file
     logger_setup(settings_filepath)

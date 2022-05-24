@@ -30,7 +30,7 @@ input_variables = [
 ]
 
 
-def parse_inputs(settings_filepath):
+def parse_inputs(settings_filepath, check_training_data=False):
     """
     Checks whether the settings file exists, and contains all necessary
     fields, then returns its contents as a dictionary.
@@ -69,21 +69,19 @@ def parse_inputs(settings_filepath):
                 >> found in the settings file.
                 """
             )
+
+    training_path = settings["reference_directory"] + settings["training_data_file"]
+    if check_training_data and not isfile(training_path):
+        raise FileNotFoundError(
+            f"""
+            [ MESA error ]
+            >> Expected to find a training data file at path
+            >> '{training_path}'
+            >> but the file doesn't exist.
+            """
+        )
+
     return settings
-
-
-def check_dependencies(settings, skip_training=False):
-    """
-    Checks that the files required to run the optimiser are present.
-    If a file is missing, an exception is raised.
-    """
-    output_directory = settings['solps_output_directory']
-    training_data_file = settings['training_data_file']
-
-    # Check if training data is present
-    if skip_training is False:
-        if not isfile(output_directory+training_data_file):
-            raise Exception('File not found: '+output_directory+training_data_file)
 
 
 def check_error_model(error_model):
