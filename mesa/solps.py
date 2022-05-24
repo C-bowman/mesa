@@ -90,7 +90,7 @@ def build_solps_case(
     # create the case directory and copy all the reference files
     subprocess.run(["mkdir", case_directory])
     subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstate"])
-    subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstai"])
+    subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstati"])
 
     variables = [k for k in parameter_dictionary.keys()]
 
