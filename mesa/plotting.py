@@ -7,7 +7,7 @@ from mesa import bounds_transform
 from mesa.parsing import parse_inputs, check_error_model
 from mesa.parameters import conductivity_profile, diffusivity_profile
 from inference.plotting import matrix_plot
-from inference.gp_tools import GpRegressor
+from inference.gp import GpRegressor
 
 
 def convergence_plot(settings_filepath):
@@ -104,14 +104,12 @@ def matrix_plots(settings_filepath):
 
 def cross_validation_plot(settings_filepath):
     # check the validity of the input file and return its contents
-    settings = parse_inputs(settings_filepath)
+    settings = parse_inputs(settings_filepath, check_training_data=True)
 
     # extract the required information from settings
-    output_directory = settings['solps_output_directory']
+    ref_directory = settings['solps_ref_directory']
     optimisation_bounds = settings['optimisation_bounds']
     training_data_file = settings['training_data_file']
-    diagnostic_data_file = settings['diagnostic_data_file']
-    max_iterations = settings['max_iterations']
     cross_validation = settings['cross_validation']
     error_model = settings['error_model']
     covariance_kernel = settings['covariance_kernel']
@@ -121,7 +119,7 @@ def cross_validation_plot(settings_filepath):
     free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
 
     # load the training data
-    df = read_hdf(output_directory+training_data_file)
+    df = read_hdf(ref_directory + training_data_file)
     logprob_key = check_error_model(error_model)
     log_posterior = df[logprob_key].to_numpy().copy()
 
@@ -158,9 +156,9 @@ def cross_validation_plot(settings_filepath):
     lwr -= (upr-lwr)*0.1
 
     plt.errorbar(log_posterior, mu_loo, yerr=sigma_loo, ls='none', marker='.')
-    plt.plot([lwr,upr], [lwr,upr], ls='dashed', c='black')
-    plt.xlim([lwr,upr])
-    plt.ylim([lwr,upr])
+    plt.plot([lwr, upr], [lwr, upr], ls='dashed', c='black')
+    plt.xlim([lwr, upr])
+    plt.ylim([lwr, upr])
     plt.ylabel('GP prediction of left-out point')
     plt.xlabel('value of left-out point')
     plt.grid()
