@@ -85,7 +85,7 @@ initial_sample_count = 30
 # Maximum number of iterations after which the optimisation terminates
 max_iterations = 200
 
-# specifies which criteria is used to select new proposed evaluations
+# specifies which metric is used to select new proposed evaluations
 from inference.gp import UpperConfidenceBound
 acquisition_function = UpperConfidenceBound(kappa=1.)
 
@@ -119,10 +119,6 @@ optimisation_bounds = {
     'D_barrier_width'  : (0.002, 0.04),  # transport barrier width
     'D_gap_left'       : (1e-3, 0.05),   # radius gap between left-midpoint and transport barrier
     'D_gap_right'      : (1e-3, 0.05),   # radius gap between right-midpoint and transport barrier
-
-    # Divertor transport boundaries
-    'D_div'   : (0.1, 50.0),   # radial particle diffusion
-    'chi_div' : (0.1, 50.0)    # radial heat diffusion
 }
 
 # The 'fixed_parameter_values' dictionary allows a sub-set of the parameters to be
@@ -154,8 +150,4 @@ fixed_parameter_values = {
     'D_barrier_width'  : None,   # transport barrier width
     'D_gap_left'       : None,   # radius gap between left-midpoint and transport barrier
     'D_gap_right'      : None,   # radius gap between right-midpoint and transport barrier
-
-    # Divertor transport parameters
-    'D_div'   : None,   # radial particle diffusion
-    'chi_div' : None    # radial heat diffusion
 }

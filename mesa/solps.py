@@ -1,10 +1,11 @@
 from os import chdir
+from os.path import isfile
 import logging
 import subprocess
 from numpy import sum
 
 from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.parameters import conductivity_profile, diffusivity_profile
+from mesa.parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
@@ -87,28 +88,65 @@ def build_solps_case(
         case_directory,
         parameter_dictionary
 ):
+    input_files = [
+        "input.dat",
+        "b2.neutrals.parameters",
+        "b2.boundary.parameters",
+        "b2.numerics.parameters",
+        "b2.transport.parameters",
+        "b2mn.dat"
+    ]
+
     # create the case directory and copy all the reference files
     subprocess.run(["mkdir", case_directory])
-    subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstate"])
     subprocess.run(["cp", reference_directory + "b2fstate", case_directory + "b2fstati"])
+    for input in input_files:
+        if isfile(reference_directory + input):
+            subprocess.run(["cp", reference_directory + input, case_directory + input])
 
-    variables = [k for k in parameter_dictionary.keys()]
+    optional_params = {k for k in parameter_dictionary.keys()} - required_parameters
+    written_params = set()
 
-    input_files = ['b2mn.dat', 'b2.transport.parameters']
-    for ifile in input_files:
-        output = []
-        with open(reference_directory + ifile) as f:
-            for line in f:
-                for v in variables:
-                    if '{'+v+'}' in line:
-                        val_string = parameter_dictionary[v] # TODO - CONVERT TO STRING WITH FORMATTING
-                        line.replace('{'+v+'}', val_string)
-                output.append(line)
+    mesa_input_files = [f + ".mesa" for f in input_files]
+    mesa_input_files = [f for f in mesa_input_files if isfile(reference_directory + f)]
 
-        with open(case_directory + ifile, 'w') as f:
-            for item in output:
-                f.write("%s\n" % item)
+    if len(optional_params) != 0:
+        if len(mesa_input_files) == 0:
+            raise FileNotFoundError(
+                f"""
+                [ MESA ERROR ]
+                >> The following optional parameters were specified
+                >> {optional_params}
+                >> However no input files with a .mesa extension were
+                >> found in the reference directory.
+                """
+            )
 
+        for mif in mesa_input_files:
+            output = []
+            with open(reference_directory + mif) as f:
+                for line in f:
+                    for p in optional_params:
+                        if '{'+p+'}' in line:
+                            val_string = parameter_dictionary[p]  # TODO - CONVERT TO STRING WITH FORMATTING
+                            line.replace('{'+p+'}', val_string)
+                            written_params.add(p)
+                    output.append(line)
+
+            with open(case_directory + mif, 'w') as f:  # TODO - does this overwrite?
+                for item in output:
+                    f.write("%s\n" % item)
+
+        unwritten_params = optional_params - written_params
+        if len(unwritten_params) > 0:
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> The following optional parameters were specified
+                >> {unwritten_params}
+                >> but were not found in any input files with a .mesa extension.
+                """
+            )
 
 
 
