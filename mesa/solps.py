@@ -221,16 +221,18 @@ def launch_solps(
     return job_id, case_dir
 
 
-def solps_run_complete(job_id):
+def solps_run_status(job_id, run_dir):
     """
-    Given a job id string, returns a bool indicating whether a
-    SOLPS run has completed or not.
+    ...
 
     :param job_id: \
         job id string
 
+    :param run_dir: \
+        ...
+
     :return: \
-        Returns ``True`` if the SOLPS run has finished, and ``False`` otherwise.
+        ...
     """
     # set a time-out point
 
@@ -242,8 +244,13 @@ def solps_run_complete(job_id):
     test = subprocess.Popen('squeue -u '+username, stdout=subprocess.PIPE, shell=True)
     jobqueue = test.communicate()[0]
 
-    job_finished = job_id not in str(jobqueue)
-    return job_finished
+    if job_id not in str(jobqueue):
+        balance_created = isfile(run_dir + "balance.nc")
+        status = "complete" if balance_created else "crashed"
+    else:
+        status = "running"
+
+    return status
 
 
 def cancel_solps(job_id):

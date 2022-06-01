@@ -15,7 +15,7 @@ import logging
 
 from mesa.parsing import parse_inputs, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.solps import launch_solps, evaluate_log_posterior, solps_run_complete, cancel_solps
+from mesa.solps import launch_solps, evaluate_log_posterior, cancel_solps, solps_run_status
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
 from inference.gp import GpOptimiser, GpRegressor
@@ -157,7 +157,8 @@ def initial_sampling(settings_filepath):
             itr, launch_time, run_dir, row_dict = run_data
             runtime_hours = (launch_time - time()) / 3600
 
-            if solps_run_complete(run_id):
+            run_status = solps_run_status(run_id, run_dir)
+            if run_status == "complete":
                 # evaluate the log-probabilities
                 logprobs = evaluate_log_posterior(
                     directory=run_dir,
@@ -183,7 +184,14 @@ def initial_sampling(settings_filepath):
                 # now the run results are saved we can stop tracking the run
                 current_runs.pop(run_id)
 
-            elif runtime_hours >= solps_timeout_hours:
+            elif run_status == "crashed":
+                logging.info("[ crash warning ]")
+                logging.info(f">> iteration {itr}, job {run_id} has crashed")
+                current_runs.pop(run_id)  # remove it from the current runs
+                subprocess.run(["rm", "-r", run_dir])  # remove its run directory
+                iteration_queue.append(itr)  # add the iteration number back to the queue
+
+            elif run_status == "running" and runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
                 logging.info(f">> iteration {itr}, job {run_id} has timed-out")
                 cancel_solps(run_id)  # cancel the timed-out job
