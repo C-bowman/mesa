@@ -184,6 +184,17 @@ def initial_sampling(settings_filepath):
                 # now the run results are saved we can stop tracking the run
                 current_runs.pop(run_id)
 
+                # clean up the run directory
+                output_files = [f for f in os.listdir(run_dir) if isfile(run_dir + f)]
+                allowed_files = [
+                    "balance.nc", "input.dat", "b2.neutrals.parameters",
+                    "b2.boundary.parameters", "b2.numerics.parameters",
+                    "b2.transport.parameters", "b2.transport.inputfile",
+                    "b2mn.dat"
+                ]
+                deletions = [f for f in output_files if f not in allowed_files]
+                [os.remove(run_dir + f) for f in deletions]
+
             elif run_status == "crashed":
                 logging.info("[ crash warning ]")
                 logging.info(f">> iteration {itr}, job {run_id} has crashed")
@@ -385,7 +396,9 @@ def optimizer(settings_filepath):
         )
 
         launch_time = time()
-        while not solps_run_complete(run_id):
+        run_status = "running"
+        while run_status == "running":
+            run_status = solps_run_status(run_id, run_dir)
             runtime_hours = (time() - launch_time) / 3600
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
@@ -538,7 +551,9 @@ def random_search(settings_filepath):
         )
 
         launch_time = time()
-        while not solps_run_complete(run_id):
+        run_status = "running"
+        while run_status == "running":
+            run_status = solps_run_status(run_id, run_dir)
             runtime_hours = (time() - launch_time) / 3600
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
