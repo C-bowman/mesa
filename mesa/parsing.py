@@ -70,7 +70,7 @@ def parse_inputs(settings_filepath, check_training_data=False):
                 """
             )
 
-    training_path = settings["reference_directory"] + settings["training_data_file"]
+    training_path = settings["solps_ref_directory"] + settings["training_data_file"]
     if check_training_data and not isfile(training_path):
         raise FileNotFoundError(
             f"""
