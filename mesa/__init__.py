@@ -153,7 +153,8 @@ def initial_sampling(settings_filepath):
 
         # loop through all currently running jobs to check if
         # they have finished or timed-out
-        for run_id, run_data in current_runs.items():
+        current_runs_iterable = [itm for itm in current_runs.items()]
+        for run_id, run_data in current_runs_iterable:
             itr, launch_time, run_dir, row_dict = run_data
             runtime_hours = (launch_time - time()) / 3600
 
