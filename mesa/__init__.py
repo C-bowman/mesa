@@ -134,8 +134,6 @@ def initial_sampling(settings_filepath):
             logging.info([row_dict[k] for k in conductivity_profile])
             logging.info('New D parameters:')
             logging.info([row_dict[k] for k in diffusivity_profile])
-            logging.info('Divertor parameters:')
-            logging.info([row_dict['D_div'], row_dict['chi_div']])
 
             # Run SOLPS for the new point
             run_id, run_dir = launch_solps(
@@ -383,8 +381,6 @@ def optimizer(settings_filepath):
         logging.info([row_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
         logging.info([row_dict[k] for k in diffusivity_profile])
-        logging.info('Divertor parameters:')
-        logging.info([row_dict['D_div'], row_dict['chi_div']])
 
         # Run SOLPS for the new point
         run_id, run_dir = launch_solps(
@@ -538,8 +534,6 @@ def random_search(settings_filepath):
         logging.info([row_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
         logging.info([row_dict[k] for k in diffusivity_profile])
-        logging.info('Divertor parameters:')
-        logging.info([row_dict['D_div'], row_dict['chi_div']])
 
         # Run SOLPS for the new point
         run_id, run_dir = launch_solps(
