@@ -15,7 +15,7 @@ import logging
 
 from mesa.parsing import parse_inputs, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.solps import launch_solps, evaluate_log_posterior, cancel_solps, solps_run_status
+from mesa.solps import launch_solps, evaluate_log_posterior
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
 from inference.gp import GpOptimiser, GpRegressor
@@ -112,7 +112,7 @@ def initial_sampling(settings_filepath):
         iteration_queue = [i for i in range(1, initial_sample_count + 1)][::-1]
 
     # loop until enough samples have been evaluated
-    current_runs = {}
+    current_runs = set()
     while len(iteration_queue) > 0:
 
         # if the current number of runs is less than the allowed
@@ -136,7 +136,7 @@ def initial_sampling(settings_filepath):
             logging.info([row_dict[k] for k in diffusivity_profile])
 
             # Run SOLPS for the new point
-            run_id, run_dir = launch_solps(
+            RunObj = launch_solps(
                 iteration=i,
                 reference_directory=reference_directory,
                 parameter_dictionary=row_dict,
@@ -144,47 +144,42 @@ def initial_sampling(settings_filepath):
                 n_proc=solps_n_proc,
                 set_div_transport=set_divertor_transport
             )
-            launch_time = time()
 
             # store the iteration, launch time and parameters for the new run
-            current_runs[run_id] = (i, launch_time, run_dir, row_dict)
+            current_runs.add(RunObj)
 
         # loop through all currently running jobs to check if
         # they have finished or timed-out
-        current_runs_iterable = [itm for itm in current_runs.items()]
-        for run_id, run_data in current_runs_iterable:
-            itr, launch_time, run_dir, row_dict = run_data
-            runtime_hours = (launch_time - time()) / 3600
+        current_runs_iterable = [run for run in current_runs]
+        for Run in current_runs_iterable:
+            runtime_hours = (Run.launch_time - time()) / 3600
 
-            run_status = solps_run_status(run_id, run_dir)
+            run_status = Run.status()
             if run_status == "complete":
                 # evaluate the log-probabilities
                 logprobs = evaluate_log_posterior(
-                    directory=run_dir,
+                    directory=Run.directory,
                     diagnostics=diagnostics
                 )
 
-                gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
-
                 # build a new row for the dataframe
-                row_dict['iteration'] = itr
-                row_dict['gaussian_logprob'] = gaussian_logprob
-                row_dict['cauchy_logprob'] = cauchy_logprob
-                row_dict['laplace_logprob'] = laplace_logprob
-                row_dict['logistic_logprob'] = logistic_logprob
-                row_dict['prediction_mean'] = None
-                row_dict['prediction_error'] = None
-                row_dict['convergence_metric'] = None
-
+                new_row = {
+                    "iteration": Run.iteration,
+                    "prediction_mean": None,
+                    "prediction_error": None,
+                    "prediction_metric": None
+                }
+                new_row.update(logprobs)
+                new_row.update(Run.parameters)
                 df = read_hdf(reference_directory + training_data_file, 'training')
-                df.loc[itr] = row_dict  # add the new row
+                df.loc[Run.iteration] = new_row  # add the new row
                 df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
 
                 # now the run results are saved we can stop tracking the run
-                current_runs.pop(run_id)
+                current_runs.remove(Run)
 
                 # clean up the run directory
-                output_files = [f for f in os.listdir(run_dir) if isfile(run_dir + f)]
+                output_files = [f for f in os.listdir(Run.directory) if isfile(Run.directory + f)]
                 allowed_files = [
                     "balance.nc", "input.dat", "b2.neutrals.parameters",
                     "b2.boundary.parameters", "b2.numerics.parameters",
@@ -192,22 +187,22 @@ def initial_sampling(settings_filepath):
                     "b2mn.dat"
                 ]
                 deletions = [f for f in output_files if f not in allowed_files]
-                [os.remove(run_dir + f) for f in deletions]
+                [os.remove(Run.directory + f) for f in deletions]
 
             elif run_status == "crashed":
                 logging.info("[ crash warning ]")
-                logging.info(f">> iteration {itr}, job {run_id} has crashed")
-                current_runs.pop(run_id)  # remove it from the current runs
-                subprocess.run(["rm", "-r", run_dir])  # remove its run directory
-                iteration_queue.append(itr)  # add the iteration number back to the queue
+                logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has crashed")
+                current_runs.remove(Run)  # remove it from the current runs
+                subprocess.run(["rm", "-r", Run.directory])  # remove its run directory
+                iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
 
             elif run_status == "running" and runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
-                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
-                cancel_solps(run_id)  # cancel the timed-out job
-                current_runs.pop(run_id)  # remove it from the current runs
-                subprocess.run(["rm", "-r", run_dir])  # remove its run directory
-                iteration_queue.append(itr)  # add the iteration number back to the queue
+                logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has timed-out")
+                Run.cancel()  # cancel the timed-out job
+                current_runs.remove(Run)  # remove it from the current runs
+                subprocess.run(["rm", "-r", Run.directory])  # remove its run directory
+                iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
 
         # if we're already at maximum concurrent runs, pause for a bit before re-checking
         if len(current_runs) == concurrent_runs:
@@ -355,15 +350,15 @@ def optimizer(settings_filepath):
         new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
 
         # create the dictionary for this iteration
-        row_dict = {}
+        param_dict = {}
 
         # add values for all the fixed parameters
         for key in fixed_parameters:
-            row_dict[key] = fixed_parameter_values[key]
+            param_dict[key] = fixed_parameter_values[key]
 
         # add the new free parameter values
         for key, val in zip(free_parameters, new_parameters):
-            row_dict[key] = val
+            param_dict[key] = val
 
         # check to see if the grid-transformed new point is already in the evaluated set
         if grid_transform(new_point) in grid_set:
@@ -378,49 +373,45 @@ def optimizer(settings_filepath):
             )
 
         logging.info('New chi parameters:')
-        logging.info([row_dict[k] for k in conductivity_profile])
+        logging.info([param_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
-        logging.info([row_dict[k] for k in diffusivity_profile])
+        logging.info([param_dict[k] for k in diffusivity_profile])
 
         # Run SOLPS for the new point
-        run_id, run_dir = launch_solps(
+        RunObj = launch_solps(
             iteration=itr,
             reference_directory=reference_directory,
-            parameter_dictionary=row_dict,
+            parameter_dictionary=param_dict,
             transport_profile_bounds=transport_profile_bounds,
             n_proc=solps_n_proc,
             set_div_transport=set_divertor_transport
         )
 
-        launch_time = time()
-        run_status = "running"
-        while run_status == "running":
-            run_status = solps_run_status(run_id, run_dir)
-            runtime_hours = (time() - launch_time) / 3600
+        # TODO - we have no crash handling here
+        while RunObj.status() == "running":
+            runtime_hours = (time() - RunObj.launch_time) / 3600
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
-                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
-            sleep(10)
+                logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has timed-out")
+            sleep(20)
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
-            directory=run_dir,
+            directory=RunObj.directory,
             diagnostics=diagnostics
         )
 
-        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
-
         # build a new row for the dataframe
-        row_dict['iteration'] = itr
-        row_dict['gaussian_logprob'] = gaussian_logprob
-        row_dict['cauchy_logprob'] = cauchy_logprob
-        row_dict['laplace_logprob'] = laplace_logprob
-        row_dict['logistic_logprob'] = logistic_logprob
-        row_dict['prediction_mean'] = mu_lp,
-        row_dict['prediction_error'] = sigma_lp,
-        row_dict['convergence_metric'] = convergence
+        new_row = {
+            "iteration": RunObj.iteration,
+            "prediction_mean": mu_lp,
+            "prediction_error": sigma_lp,
+            "prediction_metric": convergence
+        }
+        new_row.update(logprobs)
+        new_row.update(RunObj.parameters)
 
-        df.loc[df.index.max()+1] = row_dict  # add the new row
+        df.loc[df.index.max()+1] = new_row  # add the new row
         df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
         del df
 
@@ -520,59 +511,55 @@ def random_search(settings_filepath):
         new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
 
         # create the dictionary for this iteration
-        row_dict = {}
+        param_dict = {}
 
         # add values for all the fixed parameters
         for key in fixed_parameters:
-            row_dict[key] = fixed_parameter_values[key]
+            param_dict[key] = fixed_parameter_values[key]
 
         # add the new free parameter values
         for key, val in zip(free_parameters, new_parameters):
-            row_dict[key] = val
+            param_dict[key] = val
 
         logging.info('New chi parameters:')
-        logging.info([row_dict[k] for k in conductivity_profile])
+        logging.info([param_dict[k] for k in conductivity_profile])
         logging.info('New D parameters:')
-        logging.info([row_dict[k] for k in diffusivity_profile])
+        logging.info([param_dict[k] for k in diffusivity_profile])
 
         # Run SOLPS for the new point
-        run_id, run_dir = launch_solps(
+        RunObj = launch_solps(
             iteration=itr,
             reference_directory=reference_directory,
-            parameter_dictionary=row_dict,
+            parameter_dictionary=param_dict,
             transport_profile_bounds=transport_profile_bounds,
             n_proc=solps_n_proc,
             set_div_transport=set_divertor_transport
         )
 
-        launch_time = time()
-        run_status = "running"
-        while run_status == "running":
-            run_status = solps_run_status(run_id, run_dir)
-            runtime_hours = (time() - launch_time) / 3600
+        # TODO - we have no crash handling here
+        while RunObj.status() == "running":
+            runtime_hours = (time() - RunObj.launch_time) / 3600
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
-                logging.info(f">> iteration {itr}, job {run_id} has timed-out")
-            sleep(10)
+                logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has timed-out")
+            sleep(20)
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
-            iteration=itr,
+            directory=RunObj.directory,
             diagnostics=diagnostics
         )
 
-        gaussian_logprob, cauchy_logprob, laplace_logprob, logistic_logprob = logprobs
-
         # build a new row for the dataframe
-        row_dict['iteration'] = itr
-        row_dict['gaussian_logprob'] = gaussian_logprob
-        row_dict['cauchy_logprob'] = cauchy_logprob
-        row_dict['laplace_logprob'] = laplace_logprob
-        row_dict['logistic_logprob'] = logistic_logprob
-        row_dict['prediction_mean'] = mu_lp,
-        row_dict['prediction_error'] = sigma_lp,
-        row_dict['convergence_metric'] = convergence
+        new_row = {
+            "iteration": RunObj.iteration,
+            "prediction_mean": mu_lp,
+            "prediction_error": sigma_lp,
+            "prediction_metric": convergence
+        }
+        new_row.update(logprobs)
+        new_row.update(RunObj.parameters)
 
-        df.loc[df.index.max()+1] = row_dict  # add the new row
+        df.loc[df.index.max()+1] = new_row  # add the new row
         df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
         del df

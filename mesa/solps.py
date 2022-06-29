@@ -1,13 +1,41 @@
 from os import chdir
 from os.path import isfile
+from time import time
 import logging
 import subprocess
+from dataclasses import dataclass
 from numpy import sum
 
 from mesa.models import linear_transport_profile, profile_radius_axis
 from mesa.parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
+
+
+@dataclass(frozen=True)
+class SolpsRun:
+    run_id: str
+    directory: str
+    parameters: dict
+    iteration: int
+    launch_time: float
+
+    def status(self):
+        whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
+        username = whoami.stdout.rstrip()
+
+        squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
+        job_queue = squeue.stdout
+
+        if self.run_id not in job_queue:
+            balance_created = isfile(self.directory + "balance.nc")
+            status = "complete" if balance_created else "crashed"
+        else:
+            status = "running"
+        return status
+
+    def cancel(self):
+        subprocess.run(["scancel", self.run_id])
 
 
 def write_solps_transport_inputfile(
@@ -159,7 +187,7 @@ def launch_solps(
     transport_profile_bounds,
     set_div_transport=False,
     n_proc=1
-):
+) -> SolpsRun:
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
 
@@ -218,52 +246,16 @@ def launch_solps(
     job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
 
     logging.info(f'[solps_interface] Submitted job {job_id}')
-    return job_id, case_dir
+    return SolpsRun(
+        run_id=job_id,
+        directory=case_dir,
+        iteration=iteration,
+        parameters=parameter_dictionary,
+        launch_time=time()
+    )
 
 
-def solps_run_status(job_id, run_dir):
-    """
-    ...
-
-    :param job_id: \
-        job id string
-
-    :param run_dir: \
-        ...
-
-    :return: \
-        ...
-    """
-    # set a time-out point
-
-    # wait for run completion
-    uname = subprocess.Popen('whoami', stdout=subprocess.PIPE, shell=True)
-    username = uname.communicate()[0]
-    username = str(username.rstrip(), 'utf-8')
-
-    test = subprocess.Popen('squeue -u '+username, stdout=subprocess.PIPE, shell=True)
-    jobqueue = test.communicate()[0]
-
-    if job_id not in str(jobqueue):
-        balance_created = isfile(run_dir + "balance.nc")
-        status = "complete" if balance_created else "crashed"
-    else:
-        status = "running"
-
-    return status
-
-
-def cancel_solps(job_id):
-    """
-    Cancels a SOLPS run in case of a timeout or other error.  An output file is not written
-    by SOLPS, so solps_interface knows the code ended with an error
-    """
-
-    test = subprocess.Popen('scancel ' + job_id, stdout=subprocess.PIPE, shell=True)
-    comm = test.communicate()[0]
-
-
-def evaluate_log_posterior(diagnostics, directory=None):
+def evaluate_log_posterior(diagnostics, directory=None) -> dict:
     """
     :param list diagnostics: \
         A list of instrument objects from ``sims.instruments``.
@@ -285,8 +277,13 @@ def evaluate_log_posterior(diagnostics, directory=None):
         dia.update_interface(solps_data)
 
     # calculate the log-probabilities
-    gauss_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in diagnostics])
+    gaussian_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in diagnostics])
     cauchy_logprob = sum([dia.log_likelihood(likelihood=cauchy_likelihood) for dia in diagnostics])
     laplace_logprob = sum([dia.log_likelihood(likelihood=laplace_likelihood) for dia in diagnostics])
     logistic_logprob = sum([dia.log_likelihood(likelihood=logistic_likelihood) for dia in diagnostics])
-    return gauss_logprob, cauchy_logprob, laplace_logprob, logistic_logprob
+    return {
+        "gaussian_logprob": gaussian_logprob,
+        "cauchy_logprob": cauchy_logprob,
+        "laplace_logprob": laplace_logprob,
+        "logistic_logprob": logistic_logprob,
+    }
