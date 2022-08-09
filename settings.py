@@ -40,7 +40,7 @@ solps_n_proc = 6
 set_divertor_transport = True
 
 # The range over which the transport coefficient profiles are defined
-transport_profile_bounds = (-0.1, 0.1)
+transport_profile_bounds = (-0.250, 0.240)
 
 # the number of SOLPS runs which will be launched in parallel during initial sampling
 concurrent_runs = 10
@@ -110,15 +110,15 @@ optimisation_bounds = {
     'chi_gap_right'      : (1e-3, 0.05),   # radius gap between right-midpoint and transport barrier
 
     # D-profile parameter boundaries
-    'D_boundary_left'  : (0., 2.),       # left boundary height from barrier level
+    'D_boundary_left'  : (0., 4.),       # left boundary height from barrier level
     'D_boundary_right' : (0., 2.),       # right boundary height from barrier level
     'D_frac_left'      : (0., 1.),       # left-middle height as a fraction of barrier-boundary gap
     'D_frac_right'     : (0., 1.),       # right-middle height as a fraction of barrier-boundary gap
-    'D_barrier_centre' : (-0.01, 0.01),  # transport barrier centre
-    'D_barrier_height' : (0.05, 0.4),    # transport barrier height
+    'D_barrier_centre' : (-0.05, 0.05),  # transport barrier centre
+    'D_barrier_height' : (1e-3, 0.3),    # transport barrier height
     'D_barrier_width'  : (0.002, 0.04),  # transport barrier width
-    'D_gap_left'       : (1e-3, 0.05),   # radius gap between left-midpoint and transport barrier
-    'D_gap_right'      : (1e-3, 0.05),   # radius gap between right-midpoint and transport barrier
+    'D_gap_left'       : (1e-3, 0.15),   # radius gap between left-midpoint and transport barrier
+    'D_gap_right'      : (1e-3, 0.15),   # radius gap between right-midpoint and transport barrier
 }
 
 # The 'fixed_parameter_values' dictionary allows a sub-set of the parameters to be
