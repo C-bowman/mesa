@@ -207,21 +207,21 @@ def launch_solps(
     )
 
     # produce transport profiles defined by new point
-    radius = profile_radius_axis(boundaries=transport_profile_bounds)
-
     chi_params = [parameter_dictionary[k] for k in conductivity_profile]
-    chi = linear_transport_profile(radius, chi_params, boundaries=transport_profile_bounds)
+    chi_radius = profile_radius_axis(chi_params, transport_profile_bounds)
+    chi = linear_transport_profile(chi_radius, chi_params, transport_profile_bounds)
 
     D_params = [parameter_dictionary[k] for k in diffusivity_profile]
-    D = linear_transport_profile(radius, D_params, boundaries=transport_profile_bounds)
+    D_radius = profile_radius_axis(D_params, transport_profile_bounds)
+    D = linear_transport_profile(D_radius, D_params, transport_profile_bounds)
 
     write_solps_transport_inputfile(
         filename=case_dir + 'b2.transport.inputfile',
-        grid_dperp=radius,
+        grid_dperp=D_radius,
         values_dperp=D,
-        grid_chieperp=radius,
+        grid_chieperp=chi_radius,
         values_chieperp=chi,
-        grid_chiiperp=radius,
+        grid_chiiperp=chi_radius,
         values_chiiperp=chi,
         set_ana_visc_dperp=True,
         no_pflux=True,

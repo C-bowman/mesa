@@ -1,4 +1,4 @@
-from numpy import exp, piecewise, linspace, concatenate
+from numpy import array, exp, piecewise, concatenate, sort
 
 
 def left_section_exp(x, h0, h1, lam, x0):
@@ -37,6 +37,28 @@ def exponential_transport_profile(x, params):
     ]
 
     return piecewise(x, conditions, functions)
+
+
+def linear_profile_knots(params, boundaries):
+    knot_locations = array([
+        boundaries[0],  # left edge
+        boundaries[1],  # right edge
+        params[4] - 0.5*params[6],
+        params[4] + 0.5*params[6],
+        params[4] - 0.5*params[6] - params[7],
+        params[4] + 0.5*params[6] + params[8],
+    ])
+
+    knot_values = array([
+        params[0] + params[5],
+        params[1] + params[5],
+        params[5],
+        params[5],
+        params[5] + params[2]*params[0],
+        params[5] + params[3]*params[1]
+    ])
+    sorter = knot_locations.argsort()
+    return knot_locations[sorter], knot_values[sorter]
 
 
 def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
@@ -83,14 +105,19 @@ def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
     return piecewise(x, conditions, functions)
 
 
-def profile_radius_axis(logarithmic=True, N_points=32, boundaries=(-0.1, 0.1)):
-    lwr, upr = boundaries
-    if logarithmic:
-        grd = exp(-linspace(0.0, 3.0, N_points//2))
-        grd = grd - grd.min() + 0.01
-        grd = lwr*grd / grd.max()
-        radius = concatenate([grd, -grd[::-1]])
-    else:
-        radius = linspace(lwr, upr, N_points)
+def profile_radius_axis(params, boundaries):
+    r, _ = linear_profile_knots(params, boundaries)
+    # find the spacing that we'll use to place points around each knot
+    dr = [r[1] - r[0]]
+    for i in range(1, 5):
+        dr.append(min(r[i] - r[i-1], r[i+1] - r[i]))
+    dr.append(r[5] - r[4])
+    # generate the points around each knot
+    spacing = array([-6., -2., -1., 1., 2., 6.]) * 0.03
+    left_edge = spacing[3:]*dr[0] + r[0]
+    right_edge = spacing[:3]*dr[-1] + r[-1]
+    middles = [spacing*dr[i] + r[i] for i in range(1, 5)]
+    # combine all the points and return them sorted
+    return sort(concatenate([left_edge, *middles, right_edge, boundaries]))
 
-    return radius
+
