@@ -99,12 +99,12 @@ trust_region_width = 0.08
 # profile model parameters
 optimisation_bounds = {
     # Chi-profile parameter boundaries
-    'chi_boundary_left'  : (0., 2.),       # left boundary height from barrier level
-    'chi_boundary_right' : (0., 2.),       # right boundary height from barrier level
-    'chi_frac_left'      : (0., 1.),       # left-middle height as a fraction of barrier-boundary gap
-    'chi_frac_right'     : (0., 1.),       # right-middle height as a fraction of barrier-boundary gap
-    'chi_barrier_centre' : (-0.01, 0.01),  # transport barrier centre
-    'chi_barrier_height' : (0.05, 0.4),    # transport barrier height
+    'chi_boundary_left'  : (0., 6.),       # left boundary height from barrier level
+    'chi_boundary_right' : (0., 15.),      # right boundary height from barrier level
+    'chi_frac_left'      : (0.25, 1.),     # left-middle height as a fraction of barrier-boundary gap
+    'chi_frac_right'     : (0.25, 1.),     # right-middle height as a fraction of barrier-boundary gap
+    'chi_barrier_centre' : (-0.05, 0.05),  # transport barrier centre
+    'chi_barrier_height' : (1e-3, 0.2),    # transport barrier height
     'chi_barrier_width'  : (0.002, 0.04),  # transport barrier width
     'chi_gap_left'       : (1e-3, 0.05),   # radius gap between left-midpoint and transport barrier
     'chi_gap_right'      : (1e-3, 0.05),   # radius gap between right-midpoint and transport barrier
@@ -112,13 +112,13 @@ optimisation_bounds = {
     # D-profile parameter boundaries
     'D_boundary_left'  : (0., 4.),       # left boundary height from barrier level
     'D_boundary_right' : (0., 2.),       # right boundary height from barrier level
-    'D_frac_left'      : (0., 1.),       # left-middle height as a fraction of barrier-boundary gap
-    'D_frac_right'     : (0., 1.),       # right-middle height as a fraction of barrier-boundary gap
+    'D_frac_left'      : (0.25, 1.),     # left-middle height as a fraction of barrier-boundary gap
+    'D_frac_right'     : (0.25, 1.),     # right-middle height as a fraction of barrier-boundary gap
     'D_barrier_centre' : (-0.05, 0.05),  # transport barrier centre
-    'D_barrier_height' : (1e-3, 0.3),    # transport barrier height
+    'D_barrier_height' : (1e-3, 0.2),    # transport barrier height
     'D_barrier_width'  : (0.002, 0.04),  # transport barrier width
-    'D_gap_left'       : (1e-3, 0.15),   # radius gap between left-midpoint and transport barrier
-    'D_gap_right'      : (1e-3, 0.15),   # radius gap between right-midpoint and transport barrier
+    'D_gap_left'       : (1e-3, 0.1),    # radius gap between left-midpoint and transport barrier
+    'D_gap_right'      : (1e-3, 0.1),    # radius gap between right-midpoint and transport barrier
 }
 
 # The 'fixed_parameter_values' dictionary allows a sub-set of the parameters to be
