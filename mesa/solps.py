@@ -223,11 +223,10 @@ def launch_solps(
         values_chieperp=chi,
         grid_chiiperp=chi_radius,
         values_chiiperp=chi,
-        set_ana_visc_dperp=True,
+        set_ana_visc_dperp=False,  # TODO - may need to be chosen via settings file
         no_pflux=True,
         no_div=set_div_transport
     )
-
 
     # Go to the SOLPS run directory to prepare execution
     chdir(case_dir)
@@ -237,7 +236,7 @@ def launch_solps(
     if n_proc == 1:
         start_run = subprocess.Popen("itmsubmit", stdout=subprocess.PIPE, shell=True)
     if n_proc > 1:
-        start_run = subprocess.Popen('itmsubmit -m "-np '+str(n_proc)+'"', stdout=subprocess.PIPE, shell=True)
+        start_run = subprocess.Popen(f'itmsubmit -m "-np {n_proc}"', stdout=subprocess.PIPE, shell=True)
 
     start_run_output = start_run.communicate()[0]
     chdir(reference_directory)
