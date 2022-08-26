@@ -106,8 +106,8 @@ optimisation_bounds = {
     'chi_barrier_centre' : (-0.05, 0.05),  # transport barrier centre
     'chi_barrier_height' : (1e-3, 0.2),    # transport barrier height
     'chi_barrier_width'  : (0.002, 0.04),  # transport barrier width
-    'chi_gap_left'       : (1e-3, 0.05),   # radius gap between left-midpoint and transport barrier
-    'chi_gap_right'      : (1e-3, 0.05),   # radius gap between right-midpoint and transport barrier
+    'chi_gap_left'       : (2e-3, 0.05),   # radius gap between left-midpoint and transport barrier
+    'chi_gap_right'      : (2e-3, 0.05),   # radius gap between right-midpoint and transport barrier
 
     # D-profile parameter boundaries
     'D_boundary_left'  : (0., 4.),       # left boundary height from barrier level
@@ -117,8 +117,8 @@ optimisation_bounds = {
     'D_barrier_centre' : (-0.05, 0.05),  # transport barrier centre
     'D_barrier_height' : (1e-3, 0.2),    # transport barrier height
     'D_barrier_width'  : (0.002, 0.04),  # transport barrier width
-    'D_gap_left'       : (1e-3, 0.1),    # radius gap between left-midpoint and transport barrier
-    'D_gap_right'      : (1e-3, 0.1),    # radius gap between right-midpoint and transport barrier
+    'D_gap_left'       : (2e-3, 0.05),    # radius gap between left-midpoint and transport barrier
+    'D_gap_right'      : (2e-3, 0.05),    # radius gap between right-midpoint and transport barrier
 }
 
 # The 'fixed_parameter_values' dictionary allows a sub-set of the parameters to be

@@ -72,7 +72,7 @@ def write_solps_transport_inputfile(
     def build_profile(grid, values, code):
         strings = [f' ndata(1, {code} , 1 )= {len(grid)} ,']
         for i, (x, y) in enumerate(zip(grid, values)):
-            line = f' tdata(1,{i + 1:2.0f} , {code} , 1 )= {x:6.3f} , tdata(2,{i + 1:2.0f} , {code} , 1 )= {y:6.3f} ,'
+            line = f' tdata(1,{i + 1:2.0f} , {code} , 1 )= {x:6.6f} , tdata(2,{i + 1:2.0f} , {code} , 1 )= {y:6.6f} ,'
             strings.append(line)
         return strings
 
