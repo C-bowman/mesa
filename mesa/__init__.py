@@ -15,10 +15,10 @@ import logging
 
 from mesa.parsing import parse_inputs, logger_setup, check_error_model
 from mesa.models import linear_transport_profile, profile_radius_axis
+from mesa.optimisation import propose_evaluation
 from mesa.solps import launch_solps, evaluate_log_posterior
 from mesa.parameters import conductivity_profile, diffusivity_profile
 
-from inference.gp import GpOptimiser, GpRegressor
 from inference.pdf import BinaryTree
 
 
@@ -72,9 +72,9 @@ def initial_sampling(settings_filepath):
     optimisation_bounds = settings['optimisation_bounds']
     initial_sample_count = settings['initial_sample_count']
 
-    all_parameters = [key for key in fixed_parameter_values.keys()]
-    free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
-    fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
+    all_parameter_keys = [key for key in fixed_parameter_values.keys()]
+    free_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is None]
+    fixed_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is not None]
 
     # first check if the training data file exists already, or needs to be created
     if isfile(reference_directory + training_data_file):
@@ -102,7 +102,7 @@ def initial_sampling(settings_filepath):
             'prediction_mean',
             'prediction_error',
             'convergence_metric',
-            *all_parameters
+            *all_parameter_keys
         ]
 
         # create the empty dataframe to store the training data and save it to HDF
@@ -123,10 +123,10 @@ def initial_sampling(settings_filepath):
             # create the dictionary for this iteration
             row_dict = {}
             # add values for all the fixed parameters
-            for key in fixed_parameters:
+            for key in fixed_parameter_keys:
                 row_dict[key] = fixed_parameter_values[key]
             # sample values for all the free parameters
-            for key in free_parameters:
+            for key in free_parameter_keys:
                 row_dict[key] = uniform_sample(optimisation_bounds[key])
 
             logging.info(f"--- Starting iteration {i} ---")
@@ -239,18 +239,13 @@ def optimizer(settings_filepath):
     max_iterations = settings['max_iterations']
     fixed_parameter_values = settings['fixed_parameter_values']
     optimisation_bounds = settings['optimisation_bounds']
-    acquisition_function = settings['acquisition_function']
-    cross_validation = settings['cross_validation']
     error_model = settings['error_model']
-    covariance_kernel_class = settings['covariance_kernel']
-    trust_region = settings['trust_region']
-    trust_region_width = settings['trust_region_width']
     log_scale_bounds = settings['log_scale_bounds']
 
 
-    all_parameters = [key for key in fixed_parameter_values.keys()]
-    free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
-    fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
+    all_parameter_keys = [key for key in fixed_parameter_values.keys()]
+    free_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is None]
+    fixed_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is not None]
 
 
     # start the optimisation loop
@@ -270,12 +265,11 @@ def optimizer(settings_filepath):
         logprob_key = check_error_model(error_model)
         log_posterior = df[logprob_key].to_numpy().copy()
 
-        parameters = []
-        for tup in zip(*[df[p] for p in free_parameters]):
-            parameters.append( array(tup) )
+        # build a list of numpy arrays containing all the parameter values
+        parameters = [array(t) for t in zip(*[df[k] for k in free_parameter_keys])]
 
         # convert the data to the normalised coordinates:
-        free_parameter_bounds = [optimisation_bounds[k] for k in free_parameters]
+        free_parameter_bounds = [optimisation_bounds[k] for k in free_parameter_keys]
         normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
 
         # build the set of grid-transformed points
@@ -284,67 +278,14 @@ def optimizer(settings_filepath):
         # set the covariance kernel parameter bounds
         amplitude = log(log_posterior.ptp())
         hyperpar_bounds = [(amplitude-3, amplitude+3)]
-        hyperpar_bounds.extend( [log_scale_bounds for _ in free_parameters] )
+        hyperpar_bounds.extend( [log_scale_bounds for _ in free_parameter_keys] )
 
-        # construct the GP
-        covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
-        GP = GpRegressor(
-            normalised_parameters,
-            log_posterior,
-            cross_val=cross_validation,
-            kernel=covariance_kernel,
-            optimizer="diffev"
+        new_point, metrics = propose_evaluation(
+            log_posterior=log_posterior,
+            normalised_parameters=normalised_parameters,
+            hyperpar_bounds=hyperpar_bounds,
+            settings=settings
         )
-        bfgs_hps = GP.multistart_bfgs(starts=300, n_processes=solps_n_proc)
-
-        if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
-            mode = bfgs_hps
-        else:
-            mode = GP.hyperpars
-
-        logging.info('[optimiser] GP hyper-parameter tuning complete - hyper-parameter values are:')
-        logging.info(mode)
-
-        # If a trust-region approach is being used, limit the search area
-        # to a region around the current maximum
-        trhw = 0.5*trust_region_width
-        if trust_region:
-            max_ind = log_posterior.argmax()
-            max_point = normalised_parameters[max_ind]
-            search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
-        else:
-            search_bounds = [(0., 1.) for i in range(len(free_parameters))]
-
-        # build the GP-optimiser
-        covariance_kernel = covariance_kernel_class(hyperpar_bounds=hyperpar_bounds)
-        GPopt = GpOptimiser(
-            normalised_parameters,
-            log_posterior,
-            hyperpars=GP.hyperpars,
-            bounds=search_bounds,
-            cross_val=cross_validation,
-            kernel=covariance_kernel,
-            acquisition=acquisition_function
-        )
-
-        # maximise the acquisition both by multi-start bfgs and differential evolution,
-        # and use the best of the two
-        bfgs_prop = GPopt.propose_evaluation(optimizer="bfgs")
-        diff_prop = GPopt.propose_evaluation(optimizer="diffev")
-
-        bfgs_acq = GPopt.acquisition(bfgs_prop)
-        diff_acq = GPopt.acquisition(diff_prop)
-
-        new_point = bfgs_prop if bfgs_acq > diff_acq else diff_prop
-
-        logging.info('[optimiser] Acquisition function maximisation complete - max function value was:')
-        logging.info(max(bfgs_acq, diff_acq))
-
-        # calculate the convergence metric
-        convergence = GPopt.acquisition.convergence_metric(new_point)
-
-        # get predicted log-probability at the new point
-        mu_lp, sigma_lp = GPopt.gp(new_point)
 
         # back-transform to get the new point as model parameters
         new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
@@ -353,11 +294,11 @@ def optimizer(settings_filepath):
         param_dict = {}
 
         # add values for all the fixed parameters
-        for key in fixed_parameters:
+        for key in fixed_parameter_keys:
             param_dict[key] = fixed_parameter_values[key]
 
         # add the new free parameter values
-        for key, val in zip(free_parameters, new_parameters):
+        for key, val in zip(free_parameter_keys, new_parameters):
             param_dict[key] = val
 
         # check to see if the grid-transformed new point is already in the evaluated set
@@ -402,12 +343,8 @@ def optimizer(settings_filepath):
         )
 
         # build a new row for the dataframe
-        new_row = {
-            "iteration": RunObj.iteration,
-            "prediction_mean": mu_lp,
-            "prediction_error": sigma_lp,
-            "prediction_metric": convergence
-        }
+        new_row = {"iteration": RunObj.iteration}
+        new_row.update(metrics)
         new_row.update(logprobs)
         new_row.update(RunObj.parameters)
 
