@@ -113,11 +113,11 @@ def initial_sampling(settings_filepath):
 
     # loop until enough samples have been evaluated
     current_runs = set()
-    while len(iteration_queue) > 0:
+    while len(iteration_queue) > 0 or len(current_runs) > 0:
 
         # if the current number of runs is less than the allowed
         # maximum, then launch another
-        if len(current_runs) < concurrent_runs:
+        if len(current_runs) < concurrent_runs and len(iteration_queue) > 0:
             i = iteration_queue.pop()
 
             # create the dictionary for this iteration
