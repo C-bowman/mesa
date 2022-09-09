@@ -1,4 +1,4 @@
-from os import chdir
+import os
 from os.path import isfile
 from time import time
 import logging
@@ -19,6 +19,7 @@ class SolpsRun:
     parameters: dict
     iteration: int
     launch_time: float
+    timeout_hours: float
 
     def status(self):
         whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
@@ -30,9 +31,22 @@ class SolpsRun:
         if self.run_id not in job_queue:
             balance_created = isfile(self.directory + "balance.nc")
             status = "complete" if balance_created else "crashed"
+        elif (time() - self.launch_time) > self.timeout_hours * 3600.:
+            status = "timed-out"
         else:
             status = "running"
         return status
+
+    def cleanup(self):
+        output_files = [f for f in os.listdir(self.directory) if isfile(self.directory + f)]
+        allowed_files = (
+            "balance.nc", "input.dat", "b2.neutrals.parameters",
+            "b2.boundary.parameters", "b2.numerics.parameters",
+            "b2.transport.parameters", "b2.transport.inputfile",
+            "b2mn.dat"
+        )
+        deletions = [f for f in output_files if f not in allowed_files]
+        [os.remove(self.directory + f) for f in deletions]
 
     def cancel(self):
         subprocess.run(["scancel", self.run_id])
@@ -192,7 +206,8 @@ def launch_solps(
     parameter_dictionary,
     transport_profile_bounds,
     set_div_transport=False,
-    n_proc=1
+    n_proc=1,
+    timeout_hours=24
 ) -> SolpsRun:
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
@@ -235,7 +250,7 @@ def launch_solps(
     )
 
     # Go to the SOLPS run directory to prepare execution
-    chdir(case_dir)
+    os.chdir(case_dir)
 
     findstr = 'Submitted batch job'
 
@@ -245,7 +260,7 @@ def launch_solps(
         start_run = subprocess.Popen(f'itmsubmit -m "-np {n_proc}"', stdout=subprocess.PIPE, shell=True)
 
     start_run_output = start_run.communicate()[0]
-    chdir(reference_directory)
+    os.chdir(reference_directory)
     # Find the batch job number
     tmp = str(start_run_output).find(findstr)
     job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
@@ -256,7 +271,8 @@ def launch_solps(
         directory=case_dir,
         iteration=iteration,
         parameters=parameter_dictionary,
-        launch_time=time()
+        launch_time=time(),
+        timeout_hours=timeout_hours
     )
 
 
