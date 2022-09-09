@@ -288,6 +288,7 @@ def optimizer(settings_filepath):
             mean_function=settings["mean_function"],
             acquisition=settings["acquisition_function"],
             cross_validation=settings["cross_validation"],
+            n_procs=settings["solps_n_proc"],
             trust_region_width=settings["trust_region_width"]
         )
 
