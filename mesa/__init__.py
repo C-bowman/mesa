@@ -278,13 +278,17 @@ def optimizer(settings_filepath):
         # set the covariance kernel parameter bounds
         amplitude = log(log_posterior.ptp())
         hyperpar_bounds = [(amplitude-3, amplitude+3)]
-        hyperpar_bounds.extend( [log_scale_bounds for _ in free_parameter_keys] )
+        hyperpar_bounds.extend([log_scale_bounds for _ in free_parameter_keys])
 
         new_point, metrics = propose_evaluation(
             log_posterior=log_posterior,
             normalised_parameters=normalised_parameters,
             hyperpar_bounds=hyperpar_bounds,
-            settings=settings
+            kernel=settings["covariance_kernel"],
+            mean_function=settings["mean_function"],
+            acquisition=settings["acquisition_function"],
+            cross_validation=settings["cross_validation"],
+            trust_region_width=settings["trust_region_width"]
         )
 
         # back-transform to get the new point as model parameters
