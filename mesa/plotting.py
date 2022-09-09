@@ -113,37 +113,35 @@ def cross_validation_plot(settings_filepath):
     cross_validation = settings['cross_validation']
     error_model = settings['error_model']
     covariance_kernel = settings['covariance_kernel']
+    mean_function = settings['mean_function']
     fixed_parameter_values = settings['fixed_parameter_values']
-    initial_sample_count = settings['initial_sample_count']
 
-    free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
+    free_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is None]
 
     # load the training data
     df = read_hdf(ref_directory + training_data_file)
     logprob_key = check_error_model(error_model)
     log_posterior = df[logprob_key].to_numpy().copy()
 
-    parameters = [df[p] for p in free_parameters]
+    parameters = []
+    for tup in zip(*[df[p] for p in free_parameter_keys]):
+        parameters.append(array(tup))
 
     # convert the data to the normalised coordinates:
-    training_points = [bounds_transform(p, optimisation_bounds) for p in parameters]
-
-    # if requested, normalise the training data to have zero mean
-    data_mean = mean(log_posterior[:initial_sample_count])
-    log_posterior -= data_mean
+    free_parameter_bounds = [optimisation_bounds[k] for k in free_parameter_keys]
+    normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
 
     # construct the GP
     GP = GpRegressor(
-        training_points,
-        log_posterior,
+        x=normalised_parameters,
+        y=log_posterior,
         cross_val=cross_validation,
         kernel=covariance_kernel,
-        optimizer="diffev"
+        mean=mean_function,
+        optimizer="bfgs",
+        n_processes=settings["solps_n_proc"],
+        n_starts=300
     )
-    bfgs_hps = GP.multistart_bfgs(starts=300)
-
-    if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
-        GP.set_hyperparameters(bfgs_hps)
 
     # get the LOO predictions
     mu_loo, sigma_loo = GP.loo_predictions()
