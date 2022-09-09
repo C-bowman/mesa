@@ -6,28 +6,31 @@ def propose_evaluation(
     log_posterior: ndarray,
     normalised_parameters,
     hyperpar_bounds,
-    settings: dict
+    kernel,
+    mean_function,
+    acquisition,
+    cross_validation: bool,
+    n_procs: int,
+    trust_region_width=None,
 ):
     # construct the GP
-    covariance_kernel = settings["covariance_kernel"](hyperpar_bounds=hyperpar_bounds)
+    covariance_kernel = kernel(hyperpar_bounds=hyperpar_bounds)
+    mean_func = mean_function(hyperpar_bounds=hyperpar_bounds)
     GP = GpRegressor(
         normalised_parameters,
         log_posterior,
-        cross_val=settings["cross_validation"],
+        cross_val=cross_validation,
         kernel=covariance_kernel,
-        optimizer="diffev"
+        mean=mean_func,
+        optimizer="bfgs",
+        n_processes=n_procs,
+        n_starts=300
     )
-    bfgs_hps = GP.multistart_bfgs(starts=300, n_processes=settings["solps_n_proc"])
-
-    if GP.model_selector(bfgs_hps) > GP.model_selector(GP.hyperpars):
-        optimal_hyperpars = bfgs_hps
-    else:
-        optimal_hyperpars = GP.hyperpars
 
     # If a trust-region approach is being used, limit the search area
     # to a region around the current maximum
-    trhw = 0.5 * settings["trust_region_width"]
-    if settings["trust_region"]:
+    if trust_region_width is not None:
+        trhw = 0.5 * trust_region_width
         max_ind = log_posterior.argmax()
         max_point = normalised_parameters[max_ind]
         search_bounds = [(max(0., v - trhw), min(1., v + trhw)) for v in max_point]
@@ -35,15 +38,17 @@ def propose_evaluation(
         search_bounds = [(0., 1.) for _ in range(normalised_parameters[0].size)]
 
     # build the GP-optimiser
-    covariance_kernel = settings["covariance_kernel"](hyperpar_bounds=hyperpar_bounds)
+    covariance_kernel = kernel(hyperpar_bounds=hyperpar_bounds)
     GPopt = GpOptimiser(
         normalised_parameters,
         log_posterior,
-        hyperpars=optimal_hyperpars,
+        hyperpars=GP.hyperpars,
         bounds=search_bounds,
-        cross_val=settings["cross_validation"],
+        cross_val=cross_validation,
         kernel=covariance_kernel,
-        acquisition=settings['acquisition_function']
+        mean=mean_func,
+        acquisition=acquisition,
+        n_processes=n_procs
     )
 
     # maximise the acquisition both by multi-start bfgs and differential evolution,
