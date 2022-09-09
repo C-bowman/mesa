@@ -142,7 +142,8 @@ def initial_sampling(settings_filepath):
                 parameter_dictionary=row_dict,
                 transport_profile_bounds=transport_profile_bounds,
                 n_proc=solps_n_proc,
-                set_div_transport=set_divertor_transport
+                set_div_transport=set_divertor_transport,
+                timeout_hours=solps_timeout_hours
             )
 
             # store the iteration, launch time and parameters for the new run
@@ -179,15 +180,7 @@ def initial_sampling(settings_filepath):
                 current_runs.remove(Run)
 
                 # clean up the run directory
-                output_files = [f for f in os.listdir(Run.directory) if isfile(Run.directory + f)]
-                allowed_files = [
-                    "balance.nc", "input.dat", "b2.neutrals.parameters",
-                    "b2.boundary.parameters", "b2.numerics.parameters",
-                    "b2.transport.parameters", "b2.transport.inputfile",
-                    "b2mn.dat"
-                ]
-                deletions = [f for f in output_files if f not in allowed_files]
-                [os.remove(Run.directory + f) for f in deletions]
+                Run.cleanup()
 
             elif run_status == "crashed":
                 logging.info("[ crash warning ]")
@@ -196,7 +189,7 @@ def initial_sampling(settings_filepath):
                 subprocess.run(["rm", "-r", Run.directory])  # remove its run directory
                 iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
 
-            elif run_status == "running" and runtime_hours >= solps_timeout_hours:
+            elif run_status == "timed-out":
                 logging.info("[ time-out warning ]")
                 logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has timed-out")
                 Run.cancel()  # cancel the timed-out job
@@ -258,7 +251,7 @@ def optimizer(settings_filepath):
             break
 
         # get the current iteration number
-        itr = df['iteration'].max()+1
+        itr = df['iteration'].max() + 1
         logging.info(f"--- Starting iteration {itr} ---")
 
         # extract the training data
@@ -324,42 +317,50 @@ def optimizer(settings_filepath):
         logging.info([param_dict[k] for k in diffusivity_profile])
 
         # Run SOLPS for the new point
-        RunObj = launch_solps(
+        Run = launch_solps(
             iteration=itr,
             reference_directory=reference_directory,
             parameter_dictionary=param_dict,
             transport_profile_bounds=transport_profile_bounds,
             n_proc=solps_n_proc,
-            set_div_transport=set_divertor_transport
+            set_div_transport=set_divertor_transport,
+            timeout_hours=solps_timeout_hours
         )
 
-        while RunObj.status() == "running":
-            runtime_hours = (time() - RunObj.launch_time) / 3600
-            if runtime_hours >= solps_timeout_hours:
-                logging.info("[ time-out warning ]")
-                logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has timed-out")
-            sleep(20)
+        while Run.status() == "running":
+            sleep(30)
 
-        if RunObj.status() == "crashed":
+        status = Run.status()
+        if status == "complete":
+            # evaluate the chi-squared
+            logprobs = evaluate_log_posterior(
+                directory = Run.directory,
+                diagnostics = diagnostics
+            )
+
+            # build a new row for the dataframe
+            new_row = {"iteration": Run.iteration}
+            new_row.update(metrics)
+            new_row.update(logprobs)
+            new_row.update(Run.parameters)
+
+            df.loc[Run.iteration] = new_row  # add the new row
+            df.to_hdf(reference_directory + training_data_file, key="training", mode="w")  # save the data
+            del df
+
+            # remove any unwanted files from the run directory
+            Run.cleanup()
+
+        if status == "crashed":
             logging.info("[ crash warning ]")
-            logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has crashed")
+            logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has crashed")
             exit()
 
-        # evaluate the chi-squared
-        logprobs = evaluate_log_posterior(
-            directory=RunObj.directory,
-            diagnostics=diagnostics
-        )
-
-        # build a new row for the dataframe
-        new_row = {"iteration": RunObj.iteration}
-        new_row.update(metrics)
-        new_row.update(logprobs)
-        new_row.update(RunObj.parameters)
-
-        df.loc[df.index.max()+1] = new_row  # add the new row
-        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
-        del df
+        if status == "timed-out":
+            logging.info("[ time-out warning ]")
+            logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has timed-out")
+            Run.cancel()
+            exit()
 
 
 
