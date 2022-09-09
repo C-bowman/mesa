@@ -1,4 +1,4 @@
-conductivity_profile = [
+conductivity_profile = (
     "chi_boundary_left",
     "chi_boundary_right",
     "chi_frac_left",
@@ -8,9 +8,9 @@ conductivity_profile = [
     "chi_barrier_width",
     "chi_gap_left",
     "chi_gap_right",
-]
+)
 
-diffusivity_profile = [
+diffusivity_profile = (
     "D_boundary_left",
     "D_boundary_right",
     "D_frac_left",
@@ -20,7 +20,7 @@ diffusivity_profile = [
     "D_barrier_width",
     "D_gap_left",
     "D_gap_right",
-]
+)
 
 required_parameters = {
     "chi_boundary_left",
@@ -43,9 +43,9 @@ required_parameters = {
     "D_gap_right",
 }
 
-divertor_transport = ["D_div", "chi_div"]
+divertor_transport = ("D_div", "chi_div")
 
-dataframe_columns = [
+dataframe_columns = (
     "iteration",
     "gaussian_logprob",
     "cauchy_logprob",
@@ -57,4 +57,4 @@ dataframe_columns = [
     "prediction_mean",
     "prediction_error",
     "convergence_metric",
-]
+)

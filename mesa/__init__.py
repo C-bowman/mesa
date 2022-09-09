@@ -9,7 +9,7 @@ from numpy.random import random
 from pandas import DataFrame, read_hdf
 
 import subprocess
-from time import time, sleep
+from time import sleep
 from os.path import isfile
 import logging
 
@@ -327,13 +327,12 @@ def optimizer(settings_filepath):
 
         status = Run.status()
         if status == "complete":
-            # evaluate the chi-squared
             logprobs = evaluate_log_posterior(
                 directory = Run.directory,
                 diagnostics = diagnostics
             )
 
-            # build a new row for the dataframe
+            # build a new row for the dataframe as a dictionary
             new_row = {"iteration": Run.iteration}
             new_row.update(metrics)
             new_row.update(logprobs)
@@ -356,152 +355,3 @@ def optimizer(settings_filepath):
             logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has timed-out")
             Run.cancel()
             exit()
-
-
-
-
-
-
-
-def random_search(settings_filepath):
-    """
-    Performs random search (within a trust-region if requested) to
-    maximise agreement between SOLPS and the given experimental data.
-
-    :param settings_filepath: The path to the settings file.
-    """
-
-    # check the validity of the input file and return its contents
-    settings = parse_inputs(settings_filepath, check_training_data=True)
-
-    # set-up the log file
-    logger_setup(settings_filepath)
-
-    # data & results filepaths
-    reference_directory = settings['solps_ref_directory']
-    training_data_file = settings['training_data_file']
-    diagnostics = settings['diagnostics']
-
-    # SOLPS settings
-    solps_n_proc = settings['solps_n_proc']
-    set_divertor_transport = settings['set_divertor_transport']
-    solps_timeout_hours = settings['solps_timeout_hours']
-    transport_profile_bounds = settings['transport_profile_bounds']
-
-    # optimiser settings
-    max_iterations = settings['max_iterations']
-    fixed_parameter_values = settings['fixed_parameter_values']
-    optimisation_bounds = settings['optimisation_bounds']
-    error_model = settings['error_model']
-    trust_region = settings['trust_region']
-    trust_region_width = settings['trust_region_width']
-
-
-    all_parameters = [key for key in fixed_parameter_values.keys()]
-    free_parameters = [key for key, value in fixed_parameter_values.items() if value is None]
-    fixed_parameters = [key for key, value in fixed_parameter_values.items() if value is not None]
-
-
-    # start the optimisation loop
-    while True:
-        # load the training data
-        df = read_hdf(reference_directory + training_data_file, 'training')
-        # break the loop if we've hit the max number of iterations
-        if df['iteration'].max() >= max_iterations:
-            logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
-            break
-
-        # get the current iteration number
-        itr = df['iteration'].max() + 1
-        logging.info(f"--- Starting iteration {itr} ---")
-
-        # extract the training data
-        logprob_key = check_error_model(error_model)
-        log_posterior = df[logprob_key].to_numpy().copy()
-
-        parameters = []
-        for tup in zip(*[df[p] for p in free_parameters]):
-            parameters.append( array(tup) )
-
-        # convert the data to the normalised coordinates:
-        free_parameter_bounds = [optimisation_bounds[k] for k in free_parameters]
-        normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
-
-        # build the set of grid-transformed points
-        grid_set = {grid_transform(p) for p in normalised_parameters}
-
-        # If a trust-region approach is being used, limit the search area
-        # to a region around the current maximum
-        trhw = 0.5*trust_region_width
-        if trust_region:
-            max_ind = log_posterior.argmax()
-            max_point = normalised_parameters[max_ind]
-            search_bounds = [(max(0., v-trhw), min(1., v+trhw)) for v in max_point]
-        else:
-            search_bounds = [(0., 1.) for _ in range(len(free_parameters))]
-
-
-        new_point = array([a + random()*(b-a) for a,b in search_bounds])
-
-        # calculate the convergence metric
-        convergence = 0.
-
-        # get predicted log-probability at the new point
-        mu_lp, sigma_lp = 0, 0
-
-        # back-transform to get the new point as model parameters
-        new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
-
-        # create the dictionary for this iteration
-        param_dict = {}
-
-        # add values for all the fixed parameters
-        for key in fixed_parameters:
-            param_dict[key] = fixed_parameter_values[key]
-
-        # add the new free parameter values
-        for key, val in zip(free_parameters, new_parameters):
-            param_dict[key] = val
-
-        logging.info('New chi parameters:')
-        logging.info([param_dict[k] for k in conductivity_profile])
-        logging.info('New D parameters:')
-        logging.info([param_dict[k] for k in diffusivity_profile])
-
-        # Run SOLPS for the new point
-        RunObj = launch_solps(
-            iteration=itr,
-            reference_directory=reference_directory,
-            parameter_dictionary=param_dict,
-            transport_profile_bounds=transport_profile_bounds,
-            n_proc=solps_n_proc,
-            set_div_transport=set_divertor_transport
-        )
-
-        # TODO - we have no crash handling here
-        while RunObj.status() == "running":
-            runtime_hours = (time() - RunObj.launch_time) / 3600
-            if runtime_hours >= solps_timeout_hours:
-                logging.info("[ time-out warning ]")
-                logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has timed-out")
-            sleep(20)
-
-        # evaluate the chi-squared
-        logprobs = evaluate_log_posterior(
-            directory=RunObj.directory,
-            diagnostics=diagnostics
-        )
-
-        # build a new row for the dataframe
-        new_row = {
-            "iteration": RunObj.iteration,
-            "prediction_mean": mu_lp,
-            "prediction_error": sigma_lp,
-            "prediction_metric": convergence
-        }
-        new_row.update(logprobs)
-        new_row.update(RunObj.parameters)
-
-        df.loc[df.index.max()+1] = new_row  # add the new row
-        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
-        del df
