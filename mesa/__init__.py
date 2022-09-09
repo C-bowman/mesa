@@ -14,7 +14,6 @@ from os.path import isfile
 import logging
 
 from mesa.parsing import parse_inputs, logger_setup, check_error_model
-from mesa.models import linear_transport_profile, profile_radius_axis
 from mesa.optimisation import propose_evaluation
 from mesa.solps import launch_solps, evaluate_log_posterior
 from mesa.parameters import conductivity_profile, diffusivity_profile
@@ -153,7 +152,6 @@ def initial_sampling(settings_filepath):
         # they have finished or timed-out
         current_runs_iterable = [run for run in current_runs]
         for Run in current_runs_iterable:
-            runtime_hours = (Run.launch_time - time()) / 3600
 
             run_status = Run.status()
             if run_status == "complete":
@@ -235,11 +233,8 @@ def optimizer(settings_filepath):
     error_model = settings['error_model']
     log_scale_bounds = settings['log_scale_bounds']
 
-
-    all_parameter_keys = [key for key in fixed_parameter_values.keys()]
     free_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is None]
     fixed_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is not None]
-
 
     # start the optimisation loop
     while True:
@@ -281,7 +276,7 @@ def optimizer(settings_filepath):
             mean_function=settings["mean_function"],
             acquisition=settings["acquisition_function"],
             cross_validation=settings["cross_validation"],
-            n_procs=settings["solps_n_proc"],
+            n_procs=solps_n_proc,
             trust_region_width=settings["trust_region_width"]
         )
 
