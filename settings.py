@@ -62,6 +62,9 @@ cross_validation = False
 from inference.gp import SquaredExponential
 covariance_kernel = SquaredExponential
 
+from inference.gp import QuadraticMean
+mean_function = QuadraticMean
+
 # Set the lower and upper bounds for the log-scale hyper-parameters
 # of the covariance kernel.
 log_scale_bounds = (-6.0, 4.0)
@@ -88,9 +91,6 @@ max_iterations = 200
 # specifies which metric is used to select new proposed evaluations
 from inference.gp import UpperConfidenceBound
 acquisition_function = UpperConfidenceBound(kappa=1.)
-
-# Select whether or not a trust-region approach is used.
-trust_region = True
 
 # The width of the trust-region.
 trust_region_width = 0.08
