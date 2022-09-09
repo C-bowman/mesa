@@ -333,13 +333,17 @@ def optimizer(settings_filepath):
             set_div_transport=set_divertor_transport
         )
 
-        # TODO - we have no crash handling here
         while RunObj.status() == "running":
             runtime_hours = (time() - RunObj.launch_time) / 3600
             if runtime_hours >= solps_timeout_hours:
                 logging.info("[ time-out warning ]")
                 logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has timed-out")
             sleep(20)
+
+        if RunObj.status() == "crashed":
+            logging.info("[ crash warning ]")
+            logging.info(f">> iteration {RunObj.iteration}, job {RunObj.run_id} has crashed")
+            exit()
 
         # evaluate the chi-squared
         logprobs = evaluate_log_posterior(
