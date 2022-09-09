@@ -15,13 +15,12 @@ def propose_evaluation(
 ):
     # construct the GP
     covariance_kernel = kernel(hyperpar_bounds=hyperpar_bounds)
-    mean_func = mean_function(hyperpar_bounds=hyperpar_bounds)
     GP = GpRegressor(
         normalised_parameters,
         log_posterior,
         cross_val=cross_validation,
         kernel=covariance_kernel,
-        mean=mean_func,
+        mean=mean_function(),
         optimizer="bfgs",
         n_processes=n_procs,
         n_starts=300
@@ -46,7 +45,7 @@ def propose_evaluation(
         bounds=search_bounds,
         cross_val=cross_validation,
         kernel=covariance_kernel,
-        mean=mean_func,
+        mean=mean_function(),
         acquisition=acquisition,
         n_processes=n_procs
     )
