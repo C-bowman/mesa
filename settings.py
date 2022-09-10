@@ -65,10 +65,6 @@ covariance_kernel = SquaredExponential
 from inference.gp import QuadraticMean
 mean_function = QuadraticMean
 
-# Set the lower and upper bounds for the log-scale hyper-parameters
-# of the covariance kernel.
-log_scale_bounds = (-6.0, 4.0)
-
 # Choose whether the errors on the experimental data are treated either as
 # Gaussian, Cauchy or Laplace:
 error_model = 'cauchy'
@@ -92,8 +88,8 @@ max_iterations = 200
 from inference.gp import UpperConfidenceBound
 acquisition_function = UpperConfidenceBound(kappa=1.)
 
-# The width of the trust-region.
-trust_region_width = 0.08
+# The width of the trust-region, set to None to disable the trust-region
+trust_region_width = 0.3
 
 # Lower & upper bounds placed on the values of the
 # profile model parameters
