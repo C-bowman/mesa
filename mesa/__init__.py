@@ -4,7 +4,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 
-from numpy import array, log
+from numpy import array
 from numpy.random import random
 from pandas import DataFrame, read_hdf
 
@@ -231,7 +231,6 @@ def optimizer(settings_filepath):
     fixed_parameter_values = settings['fixed_parameter_values']
     optimisation_bounds = settings['optimisation_bounds']
     error_model = settings['error_model']
-    log_scale_bounds = settings['log_scale_bounds']
 
     free_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is None]
     fixed_parameter_keys = [key for key, value in fixed_parameter_values.items() if value is not None]
@@ -263,15 +262,10 @@ def optimizer(settings_filepath):
         # build the set of grid-transformed points
         grid_set = {grid_transform(p) for p in normalised_parameters}
 
-        # set the covariance kernel parameter bounds
-        amplitude = log(log_posterior.ptp())
-        hyperpar_bounds = [(amplitude-3, amplitude+3)]
-        hyperpar_bounds.extend([log_scale_bounds for _ in free_parameter_keys])
-
+        # use GPO to propose a new evaluation point
         new_point, metrics = propose_evaluation(
             log_posterior=log_posterior,
             normalised_parameters=normalised_parameters,
-            hyperpar_bounds=hyperpar_bounds,
             kernel=settings["covariance_kernel"],
             mean_function=settings["mean_function"],
             acquisition=settings["acquisition_function"],
@@ -328,8 +322,8 @@ def optimizer(settings_filepath):
         status = Run.status()
         if status == "complete":
             logprobs = evaluate_log_posterior(
-                directory = Run.directory,
-                diagnostics = diagnostics
+                directory=Run.directory,
+                diagnostics=diagnostics
             )
 
             # build a new row for the dataframe as a dictionary

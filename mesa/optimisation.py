@@ -5,7 +5,6 @@ from inference.gp import GpRegressor, GpOptimiser
 def propose_evaluation(
     log_posterior: ndarray,
     normalised_parameters,
-    hyperpar_bounds,
     kernel,
     mean_function,
     acquisition,
@@ -13,14 +12,12 @@ def propose_evaluation(
     n_procs: int,
     trust_region_width=None,
 ):
-    # construct the GP
-    covariance_kernel = kernel(hyperpar_bounds=hyperpar_bounds)
     GP = GpRegressor(
         normalised_parameters,
         log_posterior,
         cross_val=cross_validation,
-        kernel=covariance_kernel,
-        mean=mean_function(),
+        kernel=kernel,
+        mean=mean_function,
         optimizer="bfgs",
         n_processes=n_procs,
         n_starts=300
@@ -37,15 +34,14 @@ def propose_evaluation(
         search_bounds = [(0., 1.) for _ in range(normalised_parameters[0].size)]
 
     # build the GP-optimiser
-    covariance_kernel = kernel(hyperpar_bounds=hyperpar_bounds)
     GPopt = GpOptimiser(
         normalised_parameters,
         log_posterior,
         hyperpars=GP.hyperpars,
         bounds=search_bounds,
         cross_val=cross_validation,
-        kernel=covariance_kernel,
-        mean=mean_function(),
+        kernel=kernel,
+        mean=mean_function,
         acquisition=acquisition,
         n_processes=n_procs
     )

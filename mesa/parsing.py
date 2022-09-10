@@ -18,7 +18,6 @@ input_variables = [
     'cross_validation',
     'covariance_kernel',
     'mean_function',
-    'log_scale_bounds',
     'error_model',
 # optimiser settings
     'initial_sample_count',
