@@ -1,5 +1,5 @@
 
-from numpy import array, concatenate, maximum, mean
+from numpy import array, maximum
 import matplotlib.pyplot as plt
 from pandas import read_hdf
 
@@ -15,32 +15,28 @@ def convergence_plot(settings_filepath):
     settings = parse_inputs(settings_filepath)
 
     # extract the required information from settings
-    output_directory = settings['solps_output_directory']
-    optimisation_bounds = settings['optimisation_bounds']
+    output_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
-    max_iterations = settings['max_iterations']
     error_model = settings['error_model']
 
     df = read_hdf(output_directory + training_data_file, 'training')
-
-    itr = df['iteration']
+    df = df.sort_values(by=["iteration"])
     logprob_key = check_error_model(error_model)
-    LP = df[logprob_key].to_numpy().copy()
 
-    running_max = maximum.accumulate(LP)
+    running_max = maximum.accumulate(df[logprob_key])
 
-    fig = plt.figure(figsize=(12,6))
+    fig = plt.figure(figsize=(12, 6))
 
     ax1 = fig.add_subplot(121)
-    ax1.plot(itr, running_max, '.-', c='red', label='highest observed value')
-    ax1.plot(itr, LP, 'o', c='C0', label='current value')
+    ax1.plot(df["iteration"], running_max, '.-', c='red', label='highest observed value')
+    ax1.plot(df["iteration"], df[logprob_key], 'o', c='C0', label='current value')
     ax1.set_xlabel('iteration')
     ax1.set_ylabel('posterior log-probability')
     ax1.legend()
     ax1.grid()
 
     ax2 = fig.add_subplot(122)
-    ax2.plot(itr, df['convergence_metric'], 'o-')
+    ax2.plot(df["iteration"], df['convergence_metric'], 'o-')
     ax2.set_xlabel('iteration')
     ax2.set_ylabel('convergence_metric')
     ax2.set_yscale('log')
