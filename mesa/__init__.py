@@ -21,11 +21,12 @@ from mesa.parameters import conductivity_profile, diffusivity_profile
 from inference.pdf import BinaryTree
 
 
-def bounds_transform(v, bounds, inverse=False):
-    if inverse:
-        return array([b[0] + (b[1]-b[0])*k for k, b in zip(v, bounds)])
-    else:
-        return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
+def normalise_parameters(v, bounds):
+    return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
+
+
+def reverse_normalisation(v, bounds):
+    return array([b[0] + (b[1] - b[0]) * k for k, b in zip(v, bounds)])
 
 
 def grid_transform(point):
@@ -257,7 +258,7 @@ def optimizer(settings_filepath):
 
         # convert the data to the normalised coordinates:
         free_parameter_bounds = [optimisation_bounds[k] for k in free_parameter_keys]
-        normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
+        normalised_parameters = [normalise_parameters(p, free_parameter_bounds) for p in parameters]
 
         # build the set of grid-transformed points
         grid_set = {grid_transform(p) for p in normalised_parameters}
@@ -275,7 +276,7 @@ def optimizer(settings_filepath):
         )
 
         # back-transform to get the new point as model parameters
-        new_parameters = bounds_transform(new_point, free_parameter_bounds, inverse=True)
+        new_parameters = reverse_normalisation(new_point, free_parameter_bounds)
 
         # create the dictionary for this iteration
         param_dict = {}
