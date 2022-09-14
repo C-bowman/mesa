@@ -3,7 +3,7 @@ from numpy import array, maximum
 import matplotlib.pyplot as plt
 from pandas import read_hdf
 
-from mesa import bounds_transform
+from mesa import normalise_parameters
 from mesa.parsing import parse_inputs, check_error_model
 from mesa.parameters import conductivity_profile, diffusivity_profile
 from inference.plotting import matrix_plot
@@ -51,7 +51,7 @@ def matrix_plots(settings_filepath):
     settings = parse_inputs(settings_filepath)
 
     # extract the required information from settings
-    output_directory = settings['solps_output_directory']
+    output_directory = settings['solps_ref_directory']
     training_data_file = settings['training_data_file']
     initial_sample_count = settings['initial_sample_count']
     error_model = settings['error_model']
@@ -125,7 +125,7 @@ def cross_validation_plot(settings_filepath):
 
     # convert the data to the normalised coordinates:
     free_parameter_bounds = [optimisation_bounds[k] for k in free_parameter_keys]
-    normalised_parameters = [bounds_transform(p, free_parameter_bounds) for p in parameters]
+    normalised_parameters = [normalise_parameters(p, free_parameter_bounds) for p in parameters]
 
     # construct the GP
     GP = GpRegressor(
