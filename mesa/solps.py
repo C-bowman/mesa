@@ -276,7 +276,7 @@ def launch_solps(
     )
 
 
-def evaluate_log_posterior(diagnostics, directory=None) -> dict:
+def evaluate_log_posterior(diagnostics, directory=None, filename=None) -> dict:
     """
     :param list diagnostics: \
         A list of instrument objects from ``sims.instruments``.
@@ -284,11 +284,15 @@ def evaluate_log_posterior(diagnostics, directory=None) -> dict:
     :param str directory: \
         Path to the directory in which the solps results are stored.
 
+    :param str filename: \
+        Filename of the SOLPS balance file, "balance.nc" is used if not specified.
+
     :return: The posterior log-probability
     """
 
     # build the path of the solps output file
-    solps_path = directory + 'balance.nc'  # TODO - make sure this file name is right
+    fname = "balance.nc" if filename is None else filename
+    solps_path = directory + filename  # TODO - make sure this file name is right
 
     # read the SOLPS data
     solps_data = SolpsInterface(solps_path)
