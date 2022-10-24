@@ -6,14 +6,18 @@ class Mesa:
     settings_filepath : str
 
     def __init__(self, filepath):
-        self.settings = __parse_inputs(filepath)
+        self.settings = self.__parse_inputs(filepath)
         self.settings_filepath = filepath
-        self.driver = settings["driver"]
-        self.simulation = settings["simulation"]
+        self.driver = self.settings["driver"]
+        self.simulation = self.settings["simulation"]
+        self.optdata = {} # will become pandas dataframe of optimization iterations
     
     def run(self):
         # start the optimisation loop
+        self.__init_datafile() # initialize data file of parameters
+        # setup optimization (can include initial runs)
         self.driver.initialize(self.simulation)
+        # run followup simulations (series of runs for opt/scan)
         while not self.driver.converged():
             # get the current iteration number
             itr = df['iteration'].max() + 1
@@ -27,6 +31,12 @@ class Mesa:
                 parameter_dictionary = new_point
             )
 
+    def __init_datafile(self):
+        # create the empty dataframe to store the training data and save it to HDF
+        cols = self.driver.get_dataframe_columns()
+        df = DataFrame(columns=cols)
+        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')
+        del df
 
     def __parse_inputs(settings_filepath, check_training_data=False):
         """
