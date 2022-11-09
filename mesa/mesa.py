@@ -5,9 +5,10 @@ import logging
 class Mesa:
     settings_filepath : str
 
-    def __init__(self, filepath):
+    def __init__(self):
         self.settings = self.__parse_inputs(filepath)
-        self.settings_filepath = filepath
+        self.reffile = self.settings['training_data_file']
+        self.settings_filepath = self.settings['ref_directory']
         self.driver = self.settings["driver"]
         self.simulation = self.settings["simulation"]
         self.optdata = {} # will become pandas dataframe of optimization iterations
@@ -68,7 +69,10 @@ class Mesa:
             )
         input_variables = [
             'simulation', # simulation object
-            'driver' # optimizers, parameter scan, etc.
+            'driver', # optimizers, parameter scan, etc.
+            'objective_function', # objective function to optimize
+            'ref_directry', # directory where simulation data will go
+            'training_data_file' # file for storing scan/opt data
         ]
 
         # check that the settings module contains all the required information

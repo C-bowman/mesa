@@ -60,11 +60,38 @@ class Driver:
                     """
                 )
 
-class GPOptimizer(Driver):
-
-    def __init__(self,params,initial_sample_count=10):
-        super().__init__(self, params)
+class Optimizer(Driver):
+    def __init__(self, 
+        params, 
+        initial_sample_count=0, 
+        max_iterations=200
+    ):
+        self.params = params
         self.initial_sample_count = initial_sample_count
+        self.max_iterations = max_iterations
+
+class GPOptimizer(Optimizer):
+
+    def __init__(self, 
+        params, 
+        initial_sample_count=20, 
+        max_iterations=200,
+        initial_sample_count = 0,
+        max_iterations = 200,
+        covariance_kernel = None,
+        mean_function = None,
+        acquisition_function = None,
+        cross_validation = False,
+        error_model = 'cauchy',
+        trust_region_width = 0.3
+    ):
+        super().__init__(self, params, initial_sample_count=initial_sample_count, max_iterations=max_iterations)
+        self.covariance_kernel = covariance_kernel
+        self.mean_function = mean_function
+        self.acquisition_function = acquisition_function
+        self.cross_validation = cross_validation
+        self.error_model = error_model
+        self.trust_region_width = trust_region_width
 
     def initialize(self, sim):
         df = read_hdf(reference_directory + training_data_file, 'training')
@@ -179,7 +206,7 @@ class GPOptimizer(Driver):
             break
 
         # extract the training data
-        logprob_key = check_error_model(error_model)
+        logprob_key = check_error_model(self.error_model)
         log_posterior = df[logprob_key].to_numpy().copy()
 
         # build a list of numpy arrays containing all the parameter values
@@ -196,12 +223,12 @@ class GPOptimizer(Driver):
         new_point, metrics = propose_evaluation(
             log_posterior=log_posterior,
             normalised_parameters=normalised_parameters,
-            kernel=settings["covariance_kernel"],
-            mean_function=settings["mean_function"],
-            acquisition=settings["acquisition_function"],
-            cross_validation=settings["cross_validation"],
+            kernel=self.covariance_kernel,
+            mean_function=self.mean_function,
+            acquisition=self.acquisition_function,
+            cross_validation=self.cross_validation,
             n_procs=solps_n_proc,
-            trust_region_width=settings["trust_region_width"]
+            trust_region_width=self.trust_region_width
         )
 
         # back-transform to get the new point as model parameters
@@ -236,6 +263,75 @@ class GPOptimizer(Driver):
         logging.info([param_dict[k] for k in diffusivity_profile])
 
         return param_dict
+        
+    from inference.gp import GpRegressor, GpOptimiser
+    def propose_evaluation(
+        log_posterior: ndarray,
+        normalised_parameters,
+        kernel,
+        mean_function,
+        acquisition,
+        cross_validation: bool,
+        n_procs: int,
+        trust_region_width=None,
+    ):
+        GP = GpRegressor(
+            normalised_parameters,
+            log_posterior,
+            cross_val=cross_validation,
+            kernel=kernel,
+            mean=mean_function,
+            optimizer="bfgs",
+            n_processes=n_procs,
+            n_starts=300
+        )
+
+        # If a trust-region approach is being used, limit the search area
+        # to a region around the current maximum
+        if trust_region_width is not None:
+            trhw = 0.5 * trust_region_width
+            max_ind = log_posterior.argmax()
+            max_point = normalised_parameters[max_ind]
+            search_bounds = [(max(0., v - trhw), min(1., v + trhw)) for v in max_point]
+        else:
+            search_bounds = [(0., 1.) for _ in range(normalised_parameters[0].size)]
+
+        # build the GP-optimiser
+        GPopt = GpOptimiser(
+            normalised_parameters,
+            log_posterior,
+            hyperpars=GP.hyperpars,
+            bounds=search_bounds,
+            cross_val=cross_validation,
+            kernel=kernel,
+            mean=mean_function,
+            acquisition=acquisition,
+            n_processes=n_procs
+        )
+
+        # maximise the acquisition both by multi-start bfgs and differential evolution,
+        # and use the best of the two
+        bfgs_prop = GPopt.propose_evaluation(optimizer="bfgs")
+        diff_prop = GPopt.propose_evaluation(optimizer="diffev")
+
+        bfgs_acq = GPopt.acquisition(bfgs_prop)
+        diff_acq = GPopt.acquisition(diff_prop)
+
+        new_point = bfgs_prop if bfgs_acq > diff_acq else diff_prop
+
+        # calculate the convergence metric
+        convergence = GPopt.acquisition.convergence_metric(new_point)
+
+        # get predicted log-probability at the new point
+        mu_lp, sigma_lp = GPopt.gp(new_point)
+
+        metrics = {
+            "prediction_mean": mu_lp,
+            "prediction_error": sigma_lp,
+            "prediction_metric": convergence
+        }
+
+        return new_point, metrics
 
     def __get_opt_columns()
     """
