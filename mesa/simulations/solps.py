@@ -272,6 +272,11 @@ class SOLPS(Simulation):
             timeout_hours=timeout_hours
         )
 
+    def get_data(path=path):
+        """
+        Returns interface to run data at provided path
+        """
+        return SolpsInterface(path+"balance.nc")
 
     def evaluate_log_posterior(diagnostics, directory=None, filename=None) -> dict:
         """
