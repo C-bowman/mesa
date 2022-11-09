@@ -8,7 +8,7 @@ class Mesa:
     def __init__(self):
         self.settings = self.__parse_inputs(filepath)
         self.reffile = self.settings['training_data_file']
-        self.settings_filepath = self.settings['ref_directory']
+        self.simpath = self.settings['ref_directory']
         self.driver = self.settings["driver"]
         self.simulation = self.settings["simulation"]
         self.optdata = {} # will become pandas dataframe of optimization iterations
@@ -26,10 +26,15 @@ class Mesa:
 
             new_point = self.driver.get_next_point()
 
+            if new_point == None:
+                logging.info('maximum iterations reached without convergence')
+                break
+
             # Run SOLPS for the new point
             Run = self.simulation.launch(
-                iteration=itr,
-                parameter_dictionary = new_point
+                iteration = itr,
+                directory = self.simpath,
+                parameters = new_point
             )
 
     def __init_datafile(self):
