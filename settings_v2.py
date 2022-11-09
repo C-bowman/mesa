@@ -1,12 +1,11 @@
 # ----------------------------------------------------------------------------
 #   general settings
 # ----------------------------------------------------------------------------
+# directory where a reference SOLPS run is stored
+ref_directory = '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/ref_clean/'
 
-general_settings = {
-    'ref_directory' : '/pfs/work/g2hjame/solps-iter/runs/TCV_58196_small/ref_clean/', # directory where a reference SOLPS run is stored
-    'training_data_file' : 'training_data.h5' # file name in which the training data will be stored
-}
-
+# file name in which the training data will be stored
+training_data_file = 'training_data.h5'
 
 # ----------------------------------------------------------------------------
 #   diagnostics settings
@@ -25,9 +24,8 @@ TS = ThomsonScattering(
 
 dgns = [TS]
 wgts = [1.0]
-objfn = WeightedObjective(dgns,wgts)
 
-objective_function = [objfn]
+objective_function = WeightedObjective(dgns,wgts)
 
 # ----------------------------------------------------------------------------
 #   simulation settings
@@ -37,15 +35,13 @@ solps_settings = {
     'set_divertor_transport' : True,
     'transport_profile_bounds' : (-0.250, 0.240)
 }
-sim = SOLPS(
+simulation = SOLPS(
     exe='/pfs/work/g2hjame/solps-iter/software/solps'
     n_proc=6,
     timeout_hours=24, 
     concurrent_runs=10, 
     sim_settings=solps_setting
 )
-
-simulation = [sim]
 
 # ----------------------------------------------------------------------------
 #   driver settings
@@ -90,11 +86,15 @@ gpo_options = {
     'error_model' : 'cauchy',
     'trust_region_width' : 0.3
 }
-opt = 
-    GPOptimizer(
-        params,
-        general_options=general_optimizer_options,
-        specific_options=gpo_options
-    )
 
-driver = [opt]
+driver = GPOptimizer(
+    params,
+    initial_sample_count = 0,
+    max_iterations = 200,
+    covariance_kernel = SquaredExponential,
+    mean_function = QuadraticMean,
+    acquisition_function = UpperConfidenceBound(kappa=1.),
+    cross_validation = False,
+    error_model = 'cauchy',
+    trust_region_width = 0.3
+)
