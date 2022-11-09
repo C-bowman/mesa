@@ -11,13 +11,14 @@ class Mesa:
         self.simpath = self.settings['ref_directory']
         self.driver = self.settings["driver"]
         self.simulation = self.settings["simulation"]
+        self.objective_function = self.settings["objective_function"]
         self.optdata = {} # will become pandas dataframe of optimization iterations
     
     def run(self):
         # start the optimisation loop
         self.__init_datafile() # initialize data file of parameters
         # setup optimization (can include initial runs)
-        self.driver.initialize(self.simulation)
+        self.driver.initialize(self.simulation, self.objective_function)
         # run followup simulations (series of runs for opt/scan)
         while not self.driver.converged():
             # get the current iteration number
