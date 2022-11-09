@@ -13,8 +13,9 @@ class Driver:
         self.parameter_keys = [key for key in params.keys()]
         self.__parse_params()
 
-    def initialize(self, sim):
+    def initialize(self, sim, objfn):
         self.simulation = sim
+        self.objective_function = objfn
 
     def get_dataframe_columns(self):
         """
@@ -109,8 +110,8 @@ class GPOptimizer(Optimizer):
         self.error_model = error_model
         self.trust_region_width = trust_region_width
 
-    def initialize(self, sim):
-        super().initialize(sim)
+    def initialize(self, sim, objfn):
+        super().initialize(sim, objfn)
         df = read_hdf(reference_directory + training_data_file, 'training')
         current_iterations = 0 if df['iteration'].size == 0 else df['iteration'].max()
         if current_iterations >= self.initial_sample_count:
@@ -168,10 +169,12 @@ class GPOptimizer(Optimizer):
 
                 run_status = Run.status()
                 if run_status == "complete":
-                    # evaluate the log-probabilities
-                    logprobs = evaluate_log_posterior(
-                        directory=Run.directory,
-                        diagnostics=diagnostics
+                    # read the simulation data
+                    sim_data = self.simulation.get_data(Run.directory)
+
+                    # get the objective function value
+                    logprobs = self.objective_function.evaluate(
+                        simulation_interface=sim_data
                     )
 
                     # build a new row for the dataframe
