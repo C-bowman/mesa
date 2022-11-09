@@ -13,8 +13,8 @@ class Driver:
         self.parameter_keys = [key for key in params.keys()]
         self.__parse_params()
 
-    def run():
-        return
+    def initialize(self, sim):
+        self.simulation = sim
 
     def get_dataframe_columns(self):
         """
@@ -31,6 +31,24 @@ class Driver:
             *self.parameter_keys
         ]
         return cols
+    
+    def normalise_parameters(v, bounds):
+        return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
+
+    def reverse_normalisation(v, bounds):
+        return array([b[0] + (b[1] - b[0]) * k for k, b in zip(v, bounds)])
+
+    from inference.pdf import BinaryTree
+    def grid_transform(point):
+        tree = BinaryTree(limits=(0., 1.), layers=6)
+        return tuple([tree.lookup(v)[2] for v in point])
+
+    from numpy.random import random
+    def hypercube_sample(bounds):
+        return [b[0] + (b[1]-b[0])*random() for b in bounds]
+
+    def uniform_sample(bounds):
+        return bounds[0] + (bounds[1]-bounds[0])*random()
     
     def __parse_params(self):
         """
@@ -76,8 +94,6 @@ class GPOptimizer(Optimizer):
         params, 
         initial_sample_count=20, 
         max_iterations=200,
-        initial_sample_count = 0,
-        max_iterations = 200,
         covariance_kernel = None,
         mean_function = None,
         acquisition_function = None,
@@ -94,6 +110,7 @@ class GPOptimizer(Optimizer):
         self.trust_region_width = trust_region_width
 
     def initialize(self, sim):
+        super().initialize(sim)
         df = read_hdf(reference_directory + training_data_file, 'training')
         current_iterations = 0 if df['iteration'].size == 0 else df['iteration'].max()
         if current_iterations >= self.initial_sample_count:
@@ -120,20 +137,18 @@ class GPOptimizer(Optimizer):
                 # create the dictionary for this iteration
                 row_dict = {}
                 # add values for all the fixed parameters
-                for key in fixed_parameter_keys:
-                    row_dict[key] = fixed_parameter_values[key]
+                for key in self.fixed_parameter_keys:
+                    row_dict[key] = self.fixed_parameter_values[key]
                 # sample values for all the free parameters
-                for key in free_parameter_keys:
-                    row_dict[key] = uniform_sample(optimization_bounds[key])
+                for key in self.free_parameter_keys:
+                    row_dict[key] = self.uniform_sample(self.optimization_bounds[key])
 
                 logging.info(f"--- Starting iteration {i} ---")
-                logging.info('New chi parameters:')
-                logging.info([row_dict[k] for k in conductivity_profile])
-                logging.info('New D parameters:')
-                logging.info([row_dict[k] for k in diffusivity_profile])
+                logging.info("New parameters:")
+                logging.info([param_dict[k] for k in self.free_parameter_keys])
 
                 # Run SOLPS for the new point
-                RunObj = sim.launch(
+                RunObj = self.simulation.launch(
                     iteration=i,
                     reference_directory=reference_directory,
                     parameter_dictionary=row_dict,
@@ -203,21 +218,21 @@ class GPOptimizer(Optimizer):
         # break the loop if we've hit the max number of iterations
         if df['iteration'].max() >= max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
-            break
+            return None
 
         # extract the training data
         logprob_key = check_error_model(self.error_model)
         log_posterior = df[logprob_key].to_numpy().copy()
 
         # build a list of numpy arrays containing all the parameter values
-        parameters = [array(t) for t in zip(*[df[k] for k in free_parameter_keys])]
+        parameters = [array(t) for t in zip(*[df[k] for k in self.free_parameter_keys])]
 
         # convert the data to the normalised coordinates:
-        free_parameter_bounds = [optimization_bounds[k] for k in free_parameter_keys]
-        normalised_parameters = [normalise_parameters(p, free_parameter_bounds) for p in parameters]
+        free_parameter_bounds = [self.optimization_bounds[k] for k in self.free_parameter_keys]
+        normalised_parameters = [self.normalise_parameters(p, free_parameter_bounds) for p in parameters]
 
         # build the set of grid-transformed points
-        grid_set = {grid_transform(p) for p in normalised_parameters}
+        grid_set = {self.grid_transform(p) for p in normalised_parameters}
 
         # use GPO to propose a new evaluation point
         new_point, metrics = propose_evaluation(
@@ -232,21 +247,21 @@ class GPOptimizer(Optimizer):
         )
 
         # back-transform to get the new point as model parameters
-        new_parameters = reverse_normalisation(new_point, free_parameter_bounds)
+        new_parameters = self.reverse_normalisation(new_point, free_parameter_bounds)
 
         # create the dictionary for this iteration
         param_dict = {}
 
         # add values for all the fixed parameters
-        for key in fixed_parameter_keys:
-            param_dict[key] = fixed_parameter_values[key]
+        for key in self.fixed_parameter_keys:
+            param_dict[key] = self.fixed_parameter_values[key]
 
         # add the new free parameter values
-        for key, val in zip(free_parameter_keys, new_parameters):
+        for key, val in zip(self.free_parameter_keys, new_parameters):
             param_dict[key] = val
 
         # check to see if the grid-transformed new point is already in the evaluated set
-        if grid_transform(new_point) in grid_set:
+        if self.grid_transform(new_point) in grid_set:
             raise ValueError(
                 """
                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -257,10 +272,12 @@ class GPOptimizer(Optimizer):
                 """
             )
 
-        logging.info('New chi parameters:')
-        logging.info([param_dict[k] for k in conductivity_profile])
-        logging.info('New D parameters:')
-        logging.info([param_dict[k] for k in diffusivity_profile])
+        logging.info("New parameters:")
+        logging.info([param_dict[k] for k in self.free_parameter_keys])
+        # logging.info('New chi parameters:')
+        # logging.info([param_dict[k] for k in self.simulation.conductivity_profile])
+        # logging.info('New D parameters:')
+        # logging.info([param_dict[k] for k in self.simulation.diffusivity_profile])
 
         return param_dict
         
@@ -333,10 +350,10 @@ class GPOptimizer(Optimizer):
 
         return new_point, metrics
 
-    def __get_opt_columns()
-    """
-    Returns the columns needed in the data file for GPO
-    """
+    def __get_opt_columns():
+        """
+        Returns the columns needed in the data file for GPO
+        """
         # define what columns will be in the dataframe specific to the optimiation technique
         cols = [
             'gaussian_logprob',
