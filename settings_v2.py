@@ -31,16 +31,13 @@ objective_function = WeightedObjective(dgns,wgts)
 #   simulation settings
 # ----------------------------------------------------------------------------
 from mesa.simulations import SOLPS
-solps_settings = {
-    'set_divertor_transport' : True,
-    'transport_profile_bounds' : (-0.250, 0.240)
-}
 simulation = SOLPS(
     exe='/pfs/work/g2hjame/solps-iter/software/solps'
     n_proc=6,
     timeout_hours=24, 
     concurrent_runs=10, 
-    sim_settings=solps_setting
+    set_divertor_transport=True,
+    transport_profile_bounds=(-0.250, 0.240)
 )
 
 # ----------------------------------------------------------------------------
