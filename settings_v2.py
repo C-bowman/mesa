@@ -12,7 +12,7 @@ training_data_file = 'training_data.h5'
 # ----------------------------------------------------------------------------
 from numpy import load
 from sims.instruments import ThomsonScattering
-from mesa.diagnostics import WeightedObjective
+from mesa.diagnostics import WeightedObjectiveFunction
 
 instrument_data = load('# instrument data path #')
 TS = ThomsonScattering(
@@ -25,7 +25,7 @@ TS = ThomsonScattering(
 dgns = [TS]
 wgts = [1.0]
 
-objective_function = WeightedObjective(dgns,wgts)
+objective_function = WeightedObjectiveFunction(dgns,wgts)
 
 # ----------------------------------------------------------------------------
 #   simulation settings
