@@ -41,12 +41,11 @@ class SOLPS(Simulation):
     def __init__(self,
         exe=None,
         n_proc=1,
-        timeout_hours=24, 
-        concurrent_runs=1, 
+        timeout_hours=24,
         set_divertor_transport=True,
         transport_profile_bounds=(-0.250, 0.240)
     ):
-        super().__init__(exe,n_proc,timeout_hours,concurrent_runs)
+        super().__init__(exe,n_proc,timeout_hours)
         self.set_divertor_transport = set_divertor_transport
         self.transport_profile_bounds = transport_profile_bounds
 

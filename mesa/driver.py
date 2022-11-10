@@ -13,6 +13,8 @@ class Driver:
     object that it will launch with parameter values
     """
     simulation: Simulation
+    concurrent_runs: int
+    initial_sample_count: int
     parameter_keys = []
 
     # define dictionaries of parameters
@@ -21,9 +23,10 @@ class Driver:
     free_parameter_keys = []
     fixed_parameter_keys = []
 
-    def __init__(self, params):
+    def __init__(self, params, initial_sample_count, concurrent_runs):
         self.parameters = params
-        self.parameter_keys = [key for key in params.keys()]
+        self.initial_sample_count = initial_sample_count
+        self.concurrent_runs = concurrent_runs
         self.__parse_params()
 
     def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
@@ -89,6 +92,7 @@ class Driver:
         Method to parse the input parameters. Need to check which are fixed
         and which are not and separate them
         """
+        self.parameter_keys = [key for key in self.parameters.keys()]
         # find which parameters are tuples of limits and which are a single number (fixed)
         for key in self.parameter_keys:
             if isinstance(self.parameters[key],tuple):
@@ -112,10 +116,10 @@ class Optimizer(Driver):
     def __init__(self, 
         params, 
         initial_sample_count=0, 
-        max_iterations=200
+        max_iterations=200,
+        concurrent_runs=1
     ):
-        self.params = params
-        self.initial_sample_count = initial_sample_count
+        super().__init__(params,initial_sample_count,concurrent_runs)
         self.max_iterations = max_iterations
 
 class GPOptimizer(Optimizer):
@@ -124,6 +128,7 @@ class GPOptimizer(Optimizer):
         params, 
         initial_sample_count=20, 
         max_iterations=200,
+        concurrent_runs = 1,
         covariance_kernel = None,
         mean_function = None,
         acquisition_function = None,
@@ -131,7 +136,12 @@ class GPOptimizer(Optimizer):
         error_model = 'cauchy',
         trust_region_width = 0.3
     ):
-        super().__init__(self, params, initial_sample_count=initial_sample_count, max_iterations=max_iterations)
+        super().__init__(self, 
+            params, 
+            initial_sample_count=initial_sample_count, 
+            max_iterations=max_iterations,
+            concurrent_runs=concurrent_runs
+        )
         self.covariance_kernel = covariance_kernel
         self.mean_function = mean_function
         self.acquisition_function = acquisition_function
@@ -161,7 +171,7 @@ class GPOptimizer(Optimizer):
 
             # if the current number of runs is less than the allowed
             # maximum, then launch another
-            if len(current_runs) < concurrent_runs and len(iteration_queue) > 0:
+            if len(current_runs) < self.concurrent_runs and len(iteration_queue) > 0:
                 i = iteration_queue.pop()
 
                 # create the dictionary for this iteration
@@ -241,7 +251,7 @@ class GPOptimizer(Optimizer):
                     iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
 
             # if we're already at maximum concurrent runs, pause for a bit before re-checking
-            if len(current_runs) == concurrent_runs:
+            if len(current_runs) == self.concurrent_runs:
                 sleep(30)
 
     def get_next_points(self):
@@ -429,4 +439,4 @@ class GeneticOptimizer(Optimizer):
         return next_generation
 
 
-class GradientDescent(Optimizer):
+#class GradientDescent(Optimizer):

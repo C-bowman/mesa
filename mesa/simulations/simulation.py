@@ -7,18 +7,17 @@ class Simulation(ABC):
     exe: str
     n_proc: int
     timeout_hours: float
-    concurrent_runs: int
     output_filename: str
     reference_dir: str
 
     def __init__(self,
         exe=None,
-        n_proc=1
+        n_proc=1,
+        timeout_hours=1
     ):
         self.exe = exe
         self.n_proc = n_proc
         self.timeout_hours = timeout_hours
-        self.concurrent_runs = concurrent_runs
         self.output_filename = None # should be overwritten by derived classes
 
     @abstractmethod
