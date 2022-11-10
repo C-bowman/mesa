@@ -1,5 +1,6 @@
 from abc import ABC
 from numpy import sum
+import logging
 
 class Diagnostic(ABC):
     """
@@ -13,7 +14,6 @@ class Diagnostic(ABC):
     @abstractmethod
     def log_likelihood(self,likelihood=None):
         pass
-
 
 class WeightedObjectiveFunction:
     def __init__(self,diagnostics=None,weights=None):

@@ -10,24 +10,14 @@ from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
 from mesa.simulations.simulation import Simulation
+from mesa.simulations.simulation import SimulationRun
 
 @dataclass(frozen=True)
-class SolpsRun:
-    run_id: str
-    directory: str
-    parameters: dict
-    iteration: int
-    launch_time: float
-    timeout_hours: float
+class SolpsRun(SimulationRun):
 
     def status(self):
-        whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
-        username = whoami.stdout.rstrip()
-
-        squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
-        job_queue = squeue.stdout
-
-        if self.run_id not in job_queue:
+        super().status()
+        if self.run_id not in self.job_queue:
             balance_created = isfile(self.directory + "balance.nc")
             status = "complete" if balance_created else "crashed"
         elif (time() - self.launch_time) > self.timeout_hours * 3600.:
@@ -47,15 +37,6 @@ class SolpsRun:
         deletions = [f for f in output_files if f not in allowed_files]
         [os.remove(self.directory + f) for f in deletions]
 
-    def cancel(self):
-        subprocess.run(["scancel", self.run_id])
-
-    def __key(self):
-        return self.run_id, self.directory, self.iteration, self.launch_time
-
-    def __hash__(self):
-        return hash(self.__key())
-
 class SOLPS(Simulation):
     def __init__(self,
         exe=None,
@@ -69,7 +50,7 @@ class SOLPS(Simulation):
         self.set_divertor_transport = set_divertor_transport
         self.transport_profile_bounds = transport_profile_bounds
 
-    def write_solps_transport_inputfile(
+    def write_solps_transport_inputfile(self,
         filename,
         grid_dperp,
         values_dperp,
@@ -142,7 +123,7 @@ class SOLPS(Simulation):
                 f.write("%s\n" % item)
 
 
-    def build_solps_case(
+    def build_solps_case(self,
             reference_directory,
             case_directory,
             parameter_dictionary
@@ -192,7 +173,7 @@ class SOLPS(Simulation):
                     """
                 )
 
-    def launch(
+    def launch(self,
         iteration,
         directory,
         parameters
@@ -220,7 +201,7 @@ class SOLPS(Simulation):
 
         self.build_solps_case(
             reference_directory=directory,
-            case_directory=self.case_dir,
+            case_directory=self.casedir,
             parameter_dictionary=parameters
         )
 
@@ -234,7 +215,7 @@ class SOLPS(Simulation):
         D = self.linear_transport_profile(D_radius, D_params, self.transport_profile_bounds)
 
         self.write_solps_transport_inputfile(
-            filename=self.case_dir + 'b2.transport.inputfile',
+            filename=self.casedir + 'b2.transport.inputfile',
             grid_dperp=D_radius,
             values_dperp=D,
             grid_chieperp=chi_radius,
@@ -247,7 +228,7 @@ class SOLPS(Simulation):
         )
 
         # Go to the SOLPS run directory to prepare execution
-        os.chdir(self.case_dir)
+        os.chdir(self.casedir)
 
         findstr = 'Submitted batch job'
 
@@ -257,7 +238,7 @@ class SOLPS(Simulation):
             start_run = subprocess.Popen(f'itmsubmit -m "-np {n_proc}"', stdout=subprocess.PIPE, shell=True)
 
         start_run_output = start_run.communicate()[0]
-        os.chdir(reference_directory)
+        os.chdir(self.reference_dir)
         # Find the batch job number
         tmp = str(start_run_output).find(findstr)
         job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
@@ -265,55 +246,25 @@ class SOLPS(Simulation):
         logging.info(f'[solps_interface] Submitted job {job_id}')
         return SolpsRun(
             run_id=job_id,
-            directory=self.case_dir,
+            directory=self.casedir,
             iteration=iteration,
             parameters=parameters,
             launch_time=time(),
-            timeout_hours=timeout_hours
+            timeout_hours=self.timeout_hours
         )
 
-    def get_data(path=path):
+    def get_data(path=None):
         """
         Returns interface to run data at provided path
         """
+        if path==None:
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> Path not provided for simulation data in SOLPS get_data()
+                """
+            )
         return SolpsInterface(path+"balance.nc")
-
-    def evaluate_log_posterior(diagnostics, directory=None, filename=None) -> dict:
-        """
-        :param list diagnostics: \
-            A list of instrument objects from ``sims.instruments``.
-
-        :param str directory: \
-            Path to the directory in which the solps results are stored.
-
-        :param str filename: \
-            Filename of the SOLPS balance file, "balance.nc" is used if not specified.
-
-        :return: The posterior log-probability
-        """
-
-        # build the path of the solps output file
-        fname = "balance.nc" if filename is None else filename
-        solps_path = directory + filename  # TODO - make sure this file name is right
-
-        # read the SOLPS data
-        solps_data = SolpsInterface(solps_path)
-
-        # update the diagnostics with the latest SOLPS data
-        for dia in diagnostics:
-            dia.update_interface(solps_data)
-
-        # calculate the log-probabilities
-        gaussian_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in diagnostics])
-        cauchy_logprob = sum([dia.log_likelihood(likelihood=cauchy_likelihood) for dia in diagnostics])
-        laplace_logprob = sum([dia.log_likelihood(likelihood=laplace_likelihood) for dia in diagnostics])
-        logistic_logprob = sum([dia.log_likelihood(likelihood=logistic_likelihood) for dia in diagnostics])
-        return {
-            "gaussian_logprob": gaussian_logprob,
-            "cauchy_logprob": cauchy_logprob,
-            "laplace_logprob": laplace_logprob,
-            "logistic_logprob": logistic_logprob,
-        }
 
     conductivity_profile = (
         "chi_boundary_left",
