@@ -1,6 +1,7 @@
 from runpy import run_path
 from os.path import isfile
 import logging
+from pandas import DataFrame
 
 class Mesa:
     settings_filepath : str
@@ -18,31 +19,15 @@ class Mesa:
         # start the optimisation loop
         self.__init_datafile() # initialize data file of parameters
         # setup optimization (can include initial runs)
-        self.driver.initialize(self.simulation, self.objective_function)
+        self.driver.initialize(self.simulation, self.objective_function, self.simpath+'/'+self.reffile)
         # run followup simulations (series of runs for opt/scan)
-        while not self.driver.converged():
-            # get the current iteration number
-            itr = df['iteration'].max() + 1
-            logging.info(f"--- Starting iteration {itr} ---")
-
-            new_point = self.driver.get_next_point()
-
-            if new_point == None:
-                logging.info('maximum iterations reached without convergence')
-                break
-
-            # Run SOLPS for the new point
-            Run = self.simulation.launch(
-                iteration = itr,
-                directory = self.simpath,
-                parameters = new_point
-            )
+        self.driver.run()
 
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
         cols = self.driver.get_dataframe_columns()
         df = DataFrame(columns=cols)
-        df.to_hdf(reference_directory + training_data_file, key='training', mode='w')
+        df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
         del df
 
     def __parse_inputs(settings_filepath, check_training_data=False):
