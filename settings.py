@@ -32,10 +32,9 @@ objective_function = WeightedObjectiveFunction(dgns,wgts)
 # ----------------------------------------------------------------------------
 from mesa.simulations.solps import SOLPS
 simulation = SOLPS(
-    exe='/pfs/work/g2hjame/solps-iter/software/solps'
+    exe='/pfs/work/g2hjame/solps-iter/software/solps',
     n_proc=6,
-    timeout_hours=24, 
-    concurrent_runs=10, 
+    timeout_hours=24,
     set_divertor_transport=True,
     transport_profile_bounds=(-0.250, 0.240)
 )
@@ -88,6 +87,7 @@ driver = GPOptimizer(
     params,
     initial_sample_count = 0,
     max_iterations = 200,
+    concurrent_runs=10,
     covariance_kernel = SquaredExponential,
     mean_function = QuadraticMean,
     acquisition_function = UpperConfidenceBound(kappa=1.),
