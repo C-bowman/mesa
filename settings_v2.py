@@ -30,7 +30,7 @@ objective_function = WeightedObjectiveFunction(dgns,wgts)
 # ----------------------------------------------------------------------------
 #   simulation settings
 # ----------------------------------------------------------------------------
-from mesa.simulations import SOLPS
+from mesa.simulations.solps import SOLPS
 simulation = SOLPS(
     exe='/pfs/work/g2hjame/solps-iter/software/solps'
     n_proc=6,
