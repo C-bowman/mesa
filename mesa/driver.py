@@ -1,21 +1,56 @@
+from mesa.simulations.simulation import Simulation
+from mesa.diagnostics import WeightedObjectiveFunction
+from pandas import read_hdf
+from inference.pdf import BinaryTree
+from numpy.random import random
+from numpy import array
+import logging
+
 class Driver:
     """
     Base class for all drivers, holds list of parameters and their
     limits in a single dictionary. Also holds the simulation
     object that it will launch with parameter values
     """
-    simulation = None
-    parameters_limits = {}
+    simulation: Simulation
     parameter_keys = []
 
-    __init__(self, params):
+    # define dictionaries of parameters
+    fixed_parameter_values = {}
+    optimization_bounds = {}
+    free_parameter_keys = []
+    fixed_parameter_keys = []
+
+    def __init__(self, params):
         self.parameters = params
         self.parameter_keys = [key for key in params.keys()]
         self.__parse_params()
 
-    def initialize(self, sim, objfn):
+    def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
         self.simulation = sim
         self.objective_function = objfn
+        self.trainingfile = trainingfile
+    
+    def run(self):
+        df = read_hdf(self.trainingfile, 'training')
+        while not self.converged():
+            # get the current iteration number
+            itr = df['iteration'].max() + 1
+            logging.info(f"--- Starting iteration {itr} ---")
+
+            new_points = self.get_next_points()
+
+            if new_points == None:
+                logging.info('maximum iterations reached without convergence')
+                break
+
+            # Run SOLPS for the new point
+            for counter,point in enumerate(new_points):
+                Run = self.simulation.launch(
+                    iteration = itr+'_'+str(counter),
+                    directory = self.simpath,
+                    parameters = point
+                )
 
     def get_dataframe_columns(self):
         """
@@ -33,22 +68,20 @@ class Driver:
         ]
         return cols
     
-    def normalise_parameters(v, bounds):
+    def normalise_parameters(self, v, bounds):
         return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
 
-    def reverse_normalisation(v, bounds):
+    def reverse_normalisation(self, v, bounds):
         return array([b[0] + (b[1] - b[0]) * k for k, b in zip(v, bounds)])
 
-    from inference.pdf import BinaryTree
-    def grid_transform(point):
+    def grid_transform(self, point):
         tree = BinaryTree(limits=(0., 1.), layers=6)
         return tuple([tree.lookup(v)[2] for v in point])
 
-    from numpy.random import random
-    def hypercube_sample(bounds):
+    def hypercube_sample(self, bounds):
         return [b[0] + (b[1]-b[0])*random() for b in bounds]
 
-    def uniform_sample(bounds):
+    def uniform_sample(self, bounds):
         return bounds[0] + (bounds[1]-bounds[0])*random()
     
     def __parse_params(self):
@@ -56,11 +89,6 @@ class Driver:
         Method to parse the input parameters. Need to check which are fixed
         and which are not and separate them
         """
-        # define dictionaries of parameters
-        self.fixed_parameters_values = {}
-        self.optimization_bounds = {}
-        self.free_parameter_keys = []
-        self.fixed_parameter_keys = []
         # find which parameters are tuples of limits and which are a single number (fixed)
         for key in self.parameter_keys:
             if isinstance(self.parameters[key],tuple):
@@ -78,6 +106,7 @@ class Driver:
                     >> For fixed parameters the value must be float or int.
                     """
                 )
+        self.num_free_parameters = len(self.free_parameter_keys)
 
 class Optimizer(Driver):
     def __init__(self, 
@@ -110,9 +139,9 @@ class GPOptimizer(Optimizer):
         self.error_model = error_model
         self.trust_region_width = trust_region_width
 
-    def initialize(self, sim, objfn):
-        super().initialize(sim, objfn)
-        df = read_hdf(reference_directory + training_data_file, 'training')
+    def initialize(self, sim, objfn, trainingfile):
+        super().initialize(sim, objfn, trainingfile)
+        df = read_hdf(self.trainingfile, 'training')
         current_iterations = 0 if df['iteration'].size == 0 else df['iteration'].max()
         if current_iterations >= self.initial_sample_count:
             raise ValueError(
@@ -215,7 +244,7 @@ class GPOptimizer(Optimizer):
             if len(current_runs) == concurrent_runs:
                 sleep(30)
 
-    def get_next_point(self):
+    def get_next_points(self):
         # load the training data
         df = read_hdf(reference_directory + training_data_file, 'training')
         # break the loop if we've hit the max number of iterations
@@ -238,7 +267,7 @@ class GPOptimizer(Optimizer):
         grid_set = {self.grid_transform(p) for p in normalised_parameters}
 
         # use GPO to propose a new evaluation point
-        new_point, metrics = propose_evaluation(
+        new_point, metrics = self.__propose_evaluation(
             log_posterior=log_posterior,
             normalised_parameters=normalised_parameters,
             kernel=self.covariance_kernel,
@@ -282,10 +311,10 @@ class GPOptimizer(Optimizer):
         # logging.info('New D parameters:')
         # logging.info([param_dict[k] for k in self.simulation.diffusivity_profile])
 
-        return param_dict
+        return [param_dict]
         
     from inference.gp import GpRegressor, GpOptimiser
-    def propose_evaluation(
+    def __propose_evaluation(
         log_posterior: ndarray,
         normalised_parameters,
         kernel,
@@ -370,5 +399,34 @@ class GPOptimizer(Optimizer):
         return cols
 
 class GeneticOptimizer(Optimizer):
+    def __init__(self, 
+        params, 
+        initial_sample_count=20, 
+        max_iterations=200,
+        pop_size=8,
+        tolerance=1e-8
+    ):
+        super().__init__(self, 
+            params, 
+            initial_sample_count=initial_sample_count, 
+            max_iterations=max_iterations
+        )
+        self.pop_size=pop_size
+        self.current_generation = 0
+    
+    def initialize(self, sim, objfn, trainingfile):
+        """
+        Run initial population randomly distributed
+        """
+        super().initialize(sim, objfn, trainingfile)
+        return
+    
+    def get_next_points(self):
+        """
+        Get next generation
+        """
+        next_generation = []
+        return next_generation
+
 
 class GradientDescent(Optimizer):
