@@ -3,6 +3,37 @@ from os.path import isfile
 from abc import ABC
 import logging
 
+@dataclass(frozen=True)
+class SimulationRun(ABC):
+    run_id: str
+    directory: str
+    parameters: dict
+    iteration: int
+    launch_time: float
+    timeout_hours: float
+    job_queue = None
+
+    @abstractmethod
+    def status(self):
+        whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
+        username = whoami.stdout.rstrip()
+
+        squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
+        self.job_queue = squeue.stdout
+
+    @abstractmethod
+    def cleanup(self):
+        pass
+
+    def cancel(self):
+        subprocess.run(["scancel", self.run_id])
+
+    def __key(self):
+        return self.run_id, self.directory, self.iteration, self.launch_time
+
+    def __hash__(self):
+        return hash(self.__key())
+
 class Simulation(ABC):
     exe: str
     n_proc: int
@@ -21,6 +52,14 @@ class Simulation(ABC):
         self.output_filename = None # should be overwritten by derived classes
 
     @abstractmethod
+    def launch(self,
+        iteration=None,
+        directory=None,
+        parameters=None
+    ) -> SimulationRun:
+        pass
+
+    @abstractmethod
     def get_data(self,path=path):
         pass
 
@@ -34,29 +73,3 @@ class Simulation(ABC):
         for input in inputfiles:
             if isfile(ref_directory + input):
                 subprocess.run(["cp", ref_directory + input, self.casedir + input])
-
-@dataclass(frozen=True)
-class SimulationRun:
-    run_id: str
-    directory: str
-    parameters: dict
-    iteration: int
-    launch_time: float
-    timeout_hours: float
-    job_queue = None
-
-    def status(self):
-        whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
-        username = whoami.stdout.rstrip()
-
-        squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
-        self.job_queue = squeue.stdout
-
-    def cancel(self):
-        subprocess.run(["scancel", self.run_id])
-
-    def __key(self):
-        return self.run_id, self.directory, self.iteration, self.launch_time
-
-    def __hash__(self):
-        return hash(self.__key())
