@@ -173,9 +173,9 @@ class SOLPS(Simulation):
                 )
 
     def launch(self,
-        iteration,
-        directory,
-        parameters
+        iteration=None,
+        directory=None,
+        parameters=None
     ) -> SolpsRun:
         """
         Evaluates SOLPS for the provided transport profiles and saves the results.
