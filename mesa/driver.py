@@ -1,20 +1,28 @@
-from mesa.simulations.simulation import Simulation
+from mesa.simulations.simulation import Simulation, SimulationRun
 from mesa.diagnostics import WeightedObjectiveFunction
 from pandas import read_hdf
 from inference.pdf import BinaryTree
 from numpy.random import random
 from numpy import array
+from abc import ABC
+from time import sleep
+import subprocess
 import logging
+import os
 
-class Driver:
+class Driver(ABC):
     """
     Base class for all drivers, holds list of parameters and their
     limits in a single dictionary. Also holds the simulation
     object that it will launch with parameter values
     """
     simulation: Simulation
+    ojective_function: WeightedObjectiveFunction
     concurrent_runs: int
     initial_sample_count: int
+    max_iterations: int
+    trainingfile: str
+    reference_dir: str
     parameter_keys = []
 
     # define dictionaries of parameters
@@ -23,37 +31,106 @@ class Driver:
     free_parameter_keys = []
     fixed_parameter_keys = []
 
-    def __init__(self, params, initial_sample_count, concurrent_runs):
+    def __init__(self, params, initial_sample_count, concurrent_runs, max_iterations):
         self.parameters = params
         self.initial_sample_count = initial_sample_count
         self.concurrent_runs = concurrent_runs
+        self.max_iterations = max_iterations
         self.__parse_params()
 
     def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
         self.simulation = sim
         self.objective_function = objfn
         self.trainingfile = trainingfile
-    
+        self.reference_dir = os.path.dirname(os.path.abspath(self.trainingfile))
+        
+    @abstractmethod
+    def get_next_points(self):
+        pass
+
     def run(self):
         df = read_hdf(self.trainingfile, 'training')
         while not self.converged():
+            current_runs = set()
             # get the current iteration number
             itr = df['iteration'].max() + 1
-            logging.info(f"--- Starting iteration {itr} ---")
-
-            new_points = self.get_next_points()
-
-            if new_points == None:
+            if itr > self.max_iterations:
                 logging.info('maximum iterations reached without convergence')
                 break
+            logging.info(f"--- Starting iteration {itr} ---")
 
-            # Run SOLPS for the new point
+            # get next set of points for this iteration
+            new_points = self.get_next_points()
+
+            # Run simulation for the new point
             for counter,point in enumerate(new_points):
-                Run = self.simulation.launch(
+                logging.info(f"Sub-iteration {counter} - New parameters:")
+                logging.info([point[k] for k in self.free_parameter_keys])
+                thisrun = self.simulation.launch(
                     iteration = itr+'_'+str(counter),
                     directory = self.simpath,
                     parameters = point
                 )
+                # store the iteration, launch time and parameters for the new run
+                current_runs.add(thisrun)
+
+                # check statuses if we have hit the max concurent runs or if we are on the 
+                #  last of this set of points
+                if (len(current_runs) >= self.concurrent_runs or counter == len(new_points)-1):
+                    while len(current_runs) > 0 or len(current_runs) > 0:
+                        # loop through all currently running jobs to check if
+                        #  they have finished or timed-out
+                        current_runs_iterable = [run for run in current_runs]
+                        run : SimulationRun
+                        for run in current_runs_iterable:
+
+                            run_status = run.status()
+                            if run_status == "complete":
+                                # read the simulation data
+                                sim_data = self.simulation.get_data(run.directory)
+
+                                # get the objective function value
+                                logprobs = self.objective_function.evaluate(
+                                    simulation_interface=sim_data
+                                )
+
+                                # build a new row for the dataframe
+                                new_row = {
+                                    "iteration": run.iteration,
+                                    "prediction_mean": None,
+                                    "prediction_error": None,
+                                    "prediction_metric": None
+                                }
+                                new_row.update(logprobs)
+                                new_row.update(run.parameters)
+                                df = read_hdf(self.trainingfile, 'training')
+                                df.loc[(itr,counter)] = new_row  # add the new row
+                                df.to_hdf(self.trainingfile, key='training', mode='w')  # save the data
+
+                                # now the run results are saved we can stop tracking the run
+                                current_runs.remove(run)
+
+                                # clean up the run directory
+                                run.cleanup()
+
+                            elif run_status == "crashed":
+                                logging.info("[ crash warning ]")
+                                logging.info(f">> iteration {run.iteration}, job {run.run_id} has crashed")
+                                current_runs.remove(run)  # remove it from the current runs
+                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                                iteration_queue.append(run.iteration)  # add the iteration number back to the queue
+
+                            elif run_status == "timed-out":
+                                logging.info("[ time-out warning ]")
+                                logging.info(f">> iteration {run.iteration}, job {run.run_id} has timed-out")
+                                run.cancel()  # cancel the timed-out job
+                                current_runs.remove(run)  # remove it from the current runs
+                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                                iteration_queue.append(run.iteration)  # add the iteration number back to the queue
+
+                        # if we're already at maximum concurrent runs, pause for a bit before re-checking
+                        if len(current_runs) == self.concurrent_runs:
+                            sleep(30)
 
     def get_dataframe_columns(self):
         """
@@ -119,8 +196,7 @@ class Optimizer(Driver):
         max_iterations=200,
         concurrent_runs=1
     ):
-        super().__init__(params,initial_sample_count,concurrent_runs)
-        self.max_iterations = max_iterations
+        super().__init__(params,initial_sample_count,concurrent_runs,max_iterations)
 
 class GPOptimizer(Optimizer):
 
@@ -185,17 +261,13 @@ class GPOptimizer(Optimizer):
 
                 logging.info(f"--- Starting iteration {i} ---")
                 logging.info("New parameters:")
-                logging.info([param_dict[k] for k in self.free_parameter_keys])
+                logging.info([self.parameters[k] for k in self.free_parameter_keys])
 
-                # Run SOLPS for the new point
+                # Run simulation for the new point
                 RunObj = self.simulation.launch(
                     iteration=i,
-                    reference_directory=reference_directory,
-                    parameter_dictionary=row_dict,
-                    transport_profile_bounds=transport_profile_bounds,
-                    n_proc=solps_n_proc,
-                    set_div_transport=set_divertor_transport,
-                    timeout_hours=solps_timeout_hours
+                    directory=self.reference_dir,
+                    parameters=row_dict
                 )
 
                 # store the iteration, launch time and parameters for the new run
@@ -204,12 +276,13 @@ class GPOptimizer(Optimizer):
             # loop through all currently running jobs to check if
             # they have finished or timed-out
             current_runs_iterable = [run for run in current_runs]
-            for Run in current_runs_iterable:
+            run : SimulationRun
+            for run in current_runs_iterable:
 
-                run_status = Run.status()
+                run_status = run.status()
                 if run_status == "complete":
                     # read the simulation data
-                    sim_data = self.simulation.get_data(Run.directory)
+                    sim_data = self.simulation.get_data(run.directory)
 
                     # get the objective function value
                     logprobs = self.objective_function.evaluate(
@@ -218,37 +291,35 @@ class GPOptimizer(Optimizer):
 
                     # build a new row for the dataframe
                     new_row = {
-                        "iteration": Run.iteration,
+                        "iteration": run.iteration,
                         "prediction_mean": None,
                         "prediction_error": None,
                         "prediction_metric": None
                     }
                     new_row.update(logprobs)
-                    new_row.update(Run.parameters)
-                    df = read_hdf(reference_directory + training_data_file, 'training')
-                    df.loc[Run.iteration] = new_row  # add the new row
-                    df.to_hdf(reference_directory + training_data_file, key='training', mode='w')  # save the data
+                    new_row.update(run.parameters)
+                    df = read_hdf(self.trainingfile, 'training')
+                    df.loc[(run.iteration,0)] = new_row  # add the new row
+                    df.to_hdf(self.trainingfile, key='training', mode='w')  # save the data
 
                     # now the run results are saved we can stop tracking the run
-                    current_runs.remove(Run)
+                    current_runs.remove(run)
 
                     # clean up the run directory
-                    Run.cleanup()
+                    run.cleanup()
 
                 elif run_status == "crashed":
                     logging.info("[ crash warning ]")
-                    logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has crashed")
-                    current_runs.remove(Run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", Run.directory])  # remove its run directory
-                    iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
+                    logging.info(f">> iteration {run.iteration}, job {run.run_id} has crashed")
+                    current_runs.remove(run)  # remove it from the current runs
+                    subprocess.run(["rm", "-r", run.directory])  # remove its run directory
 
                 elif run_status == "timed-out":
                     logging.info("[ time-out warning ]")
-                    logging.info(f">> iteration {Run.iteration}, job {Run.run_id} has timed-out")
-                    Run.cancel()  # cancel the timed-out job
-                    current_runs.remove(Run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", Run.directory])  # remove its run directory
-                    iteration_queue.append(Run.iteration)  # add the iteration number back to the queue
+                    logging.info(f">> iteration {run.iteration}, job {run.run_id} has timed-out")
+                    run.cancel()  # cancel the timed-out job
+                    current_runs.remove(run)  # remove it from the current runs
+                    subprocess.run(["rm", "-r", run.directory])  # remove its run directory
 
             # if we're already at maximum concurrent runs, pause for a bit before re-checking
             if len(current_runs) == self.concurrent_runs:
@@ -256,9 +327,9 @@ class GPOptimizer(Optimizer):
 
     def get_next_points(self):
         # load the training data
-        df = read_hdf(reference_directory + training_data_file, 'training')
+        df = read_hdf(self.trainingfile, 'training')
         # break the loop if we've hit the max number of iterations
-        if df['iteration'].max() >= max_iterations:
+        if df['iteration'].max() >= self.max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
             return None
 
@@ -284,7 +355,7 @@ class GPOptimizer(Optimizer):
             mean_function=self.mean_function,
             acquisition=self.acquisition_function,
             cross_validation=self.cross_validation,
-            n_procs=solps_n_proc,
+            n_procs=self.simulation.n_proc,
             trust_region_width=self.trust_region_width
         )
 
