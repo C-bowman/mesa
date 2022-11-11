@@ -1,7 +1,7 @@
 from runpy import run_path
 from os.path import isfile
 import logging
-from pandas import DataFrame
+from pandas import DataFrame, MultiIndex
 
 class Mesa:
     settings_filepath : str
@@ -26,7 +26,8 @@ class Mesa:
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
         cols = self.driver.get_dataframe_columns()
-        df = DataFrame(columns=cols)
+        index = MultiIndex.from_tuples((0,0), names=["iteration", "sub-iteration"])
+        df = DataFrame(columns=cols, index=index)
         df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
         del df
 
