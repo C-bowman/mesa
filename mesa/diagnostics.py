@@ -8,7 +8,7 @@ class Diagnostic(ABC):
     """
 
     @abstractmethod
-    def updateInterface(self,data):
+    def update_interface(self,data):
         pass
     
     @abstractmethod
@@ -16,6 +16,8 @@ class Diagnostic(ABC):
         pass
 
 class WeightedObjectiveFunction:
+    diagnostic : list(Diagnostic)
+
     def __init__(self,diagnostics=None,weights=None):
         self.diagnostics = diagnostics
         self.weights = weights
@@ -41,7 +43,7 @@ class WeightedObjectiveFunction:
     
     def evaluate(self, simulation_interface=si):
         # update the diagnostics with the latest data
-        for dia in diagnostics:
+        for dia in self.diagnostics:
             dia.update_interface(si)
 
         return sum([wgt*dia.log_likelihood(likelihood=gaussian_likelihood) for dia,wgt in zip(self.diagnostics,self.weights)])
