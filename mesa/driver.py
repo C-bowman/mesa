@@ -2,7 +2,7 @@ from mesa.simulations.simulation import Simulation, SimulationRun
 from mesa.diagnostics import WeightedObjectiveFunction
 from pandas import read_hdf
 from inference.pdf import BinaryTree
-from numpy.random import random
+from numpy.random import default_rng
 from numpy import array
 from abc import ABC
 from time import sleep
@@ -37,6 +37,7 @@ class Driver(ABC):
         self.concurrent_runs = concurrent_runs
         self.max_iterations = max_iterations
         self.__parse_params()
+        self.rng = default_rng()
 
     def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
         self.simulation = sim
@@ -48,7 +49,19 @@ class Driver(ABC):
     def get_next_points(self):
         pass
 
-    def run(self):
+    def check_error_model(self, error_model):
+        if error_model.lower() in {'gaussian', 'cauchy', 'laplace', 'logistic'}:
+            return error_model.lower() + '_logprob'
+        else:
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> The 'error_model' settings variable was specified as {error_model},
+                >> but must be either 'gaussian', 'cauchy', 'laplace' or 'logistic'.
+                """
+            )
+
+    def run(self, new_points=None):
         df = read_hdf(self.trainingfile, 'training')
         while not self.converged():
             current_runs = set()
@@ -60,7 +73,8 @@ class Driver(ABC):
             logging.info(f"--- Starting iteration {itr} ---")
 
             # get next set of points for this iteration
-            new_points = self.get_next_points()
+            if (new_points==None):
+                new_points = self.get_next_points()
 
             # Run simulation for the new point
             for counter,point in enumerate(new_points):
@@ -159,10 +173,10 @@ class Driver(ABC):
         return tuple([tree.lookup(v)[2] for v in point])
 
     def hypercube_sample(self, bounds):
-        return [b[0] + (b[1]-b[0])*random() for b in bounds]
+        return [b[0] + (b[1]-b[0])*self.rng.random() for b in bounds]
 
     def uniform_sample(self, bounds):
-        return bounds[0] + (bounds[1]-bounds[0])*random()
+        return bounds[0] + (bounds[1]-bounds[0])*self.rng.random()
     
     def __parse_params(self):
         """
@@ -334,7 +348,7 @@ class GPOptimizer(Optimizer):
             return None
 
         # extract the training data
-        logprob_key = check_error_model(self.error_model)
+        logprob_key = self.check_error_model(self.error_model)
         log_posterior = df[logprob_key].to_numpy().copy()
 
         # build a list of numpy arrays containing all the parameter values
@@ -480,6 +494,10 @@ class GPOptimizer(Optimizer):
         return cols
 
 class GeneticOptimizer(Optimizer):
+
+    population : list
+    generations : list
+
     def __init__(self, 
         params, 
         initial_sample_count=20, 
@@ -494,20 +512,70 @@ class GeneticOptimizer(Optimizer):
         )
         self.pop_size=pop_size
         self.current_generation = 0
+        self.population = list(self.pop_size)
+        self.generations = []
+    
+    def breed(self,p1,p2):
+        return
     
     def initialize(self, sim, objfn, trainingfile):
         """
         Run initial population randomly distributed
         """
         super().initialize(sim, objfn, trainingfile)
+        for i in range(self.pop_size):
+            individual = {}
+            # select random value in bounds for free params
+            for key in self.free_parameter_keys:
+                bnds = self.optimization_bounds[key]
+                individual[key] = (bnds[1]-bnds[0])*self.rng.random()+bnds[0]
+            # add the fixed values
+            for key in self.fixed_parameter_keys:
+                individual[key] = self.fixed_parameter_values[key]
+            self.population[i] = individual
+        self.generations.append(self.population)
+
+        # run the simulations
+        self.run(new_points=self.population)
+
         return
     
     def get_next_points(self):
         """
         Get next generation
         """
-        next_generation = []
-        return next_generation
+        # load the training data
+        df = read_hdf(self.trainingfile, 'training')
+        # break the loop if we've hit the max number of iterations
+        if df['iteration'].max() >= self.max_iterations:
+            logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
+            return None
 
+        # extract the training data
+        fom = df['logprob']
+
+        lastpop = self.generations[-1]
+        for i in range(self.pop_size):
+            # sort last population by FoM
+            # remove all but top 20%
+            # interbreed that 20%, adding a mutation every now and then
+            self.population[i] = lastpop[i]
+
+        self.generations.append(self.population)
+
+        logging.info("New population:")
+        logging.info([[param_dict[k] for k in self.free_parameter_keys] for param_dict in self.population])
+
+        return self.generations[-1]
+
+    def __get_opt_columns():
+        """
+        Returns the columns needed in the data file for GPO
+        """
+        # define what columns will be in the dataframe specific to the optimiation technique
+        cols = [
+            'logprob'
+        ]
+        return cols
 
 #class GradientDescent(Optimizer):
