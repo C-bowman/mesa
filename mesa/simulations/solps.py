@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from numpy import sum
 
 from sims.interface import SolpsInterface
-from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
 from mesa.simulations.simulation import Simulation
 from mesa.simulations.simulation import SimulationRun
