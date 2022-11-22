@@ -1,5 +1,5 @@
-from mesa.models import linear_transport_profile
-from numpy import array
+from mesa.simulations.solps import SOLPS
+from numpy import array, ndarray
 
 
 def test_linear_transport_profile():
@@ -16,6 +16,7 @@ def test_linear_transport_profile():
         0.02
     ]
 
+    test_locations : ndarray
     test_locations = array([
         bounds[0],  # left edge
         bounds[1],  # right edge
@@ -25,6 +26,7 @@ def test_linear_transport_profile():
         params[4] + 0.5*params[6] + params[8],
     ])
 
+    test_values : ndarray
     test_values = array([
         params[0] + params[5],
         params[1] + params[5],
@@ -33,5 +35,7 @@ def test_linear_transport_profile():
         params[5] + params[2]*params[0],
         params[5] + params[3]*params[1]
     ])
-    test_predictions = linear_transport_profile(test_locations, params, boundaries=bounds)
+    solps = SOLPS()
+    test_predictions : ndarray
+    test_predictions = solps.linear_transport_profile(test_locations, params, boundaries=bounds)
     assert (test_predictions == test_values).all()
