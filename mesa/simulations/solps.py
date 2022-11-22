@@ -4,7 +4,7 @@ from time import time
 import logging
 import subprocess
 from dataclasses import dataclass
-from numpy import sum
+from numpy import array, exp, piecewise, concatenate, sort, ndarray
 
 from sims.interface import SolpsInterface
 
@@ -325,24 +325,19 @@ class SOLPS(Simulation):
         "convergence_metric",
     )
 
-    from numpy import array, exp, piecewise, concatenate, sort
-
     def left_section_exp(x, h0, h1, lam, x0):
         return (1 - exp(lam*(x-x0)))*(h0 - h1) + h1
-
 
     def middle_section(x, h):
         return h
 
-
     def right_section_exp(x, h0, h1, lam, x0):
         return (1 - exp(-lam*(x-x0)))*(h0 - h1) + h1
-
 
     def linear_section(x, m, c):
         return m*x + c
 
-    def exponential_transport_profile(x, params):
+    def exponential_transport_profile(x, params)->ndarray:
         L_asymp = params[0]  # left asymptote height
         R_asymp = params[1]  # right asymptote height
         L_shape = params[2]  # left-side decay rate
@@ -362,7 +357,6 @@ class SOLPS(Simulation):
         ]
 
         return piecewise(x, conditions, functions)
-
 
     def linear_profile_knots(params, boundaries):
         knot_locations = array([
@@ -384,7 +378,6 @@ class SOLPS(Simulation):
         ])
         sorter = knot_locations.argsort()
         return knot_locations[sorter], knot_values[sorter]
-
 
     def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
         M_height = params[5]  # height of the middle section
@@ -428,7 +421,6 @@ class SOLPS(Simulation):
         ]
 
         return piecewise(x, conditions, functions)
-
 
     def profile_radius_axis(params, boundaries):
         r, _ = linear_profile_knots(params, boundaries)
