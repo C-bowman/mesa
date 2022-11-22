@@ -132,7 +132,7 @@ class Driver(ABC):
                                 logging.info(f">> iteration {run.iteration}, job {run.run_id} has crashed")
                                 current_runs.remove(run)  # remove it from the current runs
                                 subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                iteration_queue.append(run.iteration)  # add the iteration number back to the queue
+                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
 
                             elif run_status == "timed-out":
                                 logging.info("[ time-out warning ]")
@@ -140,7 +140,7 @@ class Driver(ABC):
                                 run.cancel()  # cancel the timed-out job
                                 current_runs.remove(run)  # remove it from the current runs
                                 subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                iteration_queue.append(run.iteration)  # add the iteration number back to the queue
+                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
 
                         # if we're already at maximum concurrent runs, pause for a bit before re-checking
                         if len(current_runs) == self.concurrent_runs:
