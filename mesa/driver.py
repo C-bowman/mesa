@@ -499,13 +499,13 @@ class GeneticOptimizer(Optimizer):
     generations : list
 
     def __init__(self, 
-        params, 
+        params : dict, 
         initial_sample_count=20, 
         max_iterations=200,
         pop_size=8,
         tolerance=1e-8
     ):
-        super().__init__(self, 
+        super().__init__( 
             params, 
             initial_sample_count=initial_sample_count, 
             max_iterations=max_iterations,
@@ -513,7 +513,7 @@ class GeneticOptimizer(Optimizer):
         )
         self.pop_size=pop_size
         self.current_generation = 0
-        self.population = list(self.pop_size)
+        self.population = []
         self.generations = []
     
     def breed(self,p1,p2):
@@ -533,7 +533,7 @@ class GeneticOptimizer(Optimizer):
             # add the fixed values
             for key in self.fixed_parameter_keys:
                 individual[key] = self.fixed_parameter_values[key]
-            self.population[i] = individual
+            self.population.append(individual)
         self.generations.append(self.population)
 
         # run the simulations
