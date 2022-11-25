@@ -25,6 +25,7 @@ class Driver(ABC):
     trainingfile: str
     reference_dir: str
     parameter_keys = []
+    converged = bool
 
     # define dictionaries of parameters
     fixed_parameter_values = {}
@@ -39,6 +40,7 @@ class Driver(ABC):
         self.max_iterations = max_iterations
         self.__parse_params()
         self.rng = default_rng()
+        self.converged = False
 
     def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
         self.simulation = sim
@@ -64,10 +66,10 @@ class Driver(ABC):
 
     def run(self, new_points=None):
         df = read_hdf(self.trainingfile, 'training')
-        while not self.converged():
+        while not self.converged:
             current_runs = set()
             # get the current iteration number
-            itr = df['iteration'].max() + 1
+            itr = df.index[-1][0] + 1
             if itr > self.max_iterations:
                 logging.info('maximum iterations reached without convergence')
                 break
@@ -82,8 +84,8 @@ class Driver(ABC):
                 logging.info(f"Sub-iteration {counter} - New parameters:")
                 logging.info([point[k] for k in self.free_parameter_keys])
                 thisrun = self.simulation.launch(
-                    iteration = itr+'_'+str(counter),
-                    directory = self.simpath,
+                    iteration = str(itr)+'_'+str(counter),
+                    directory = self.reference_dir,
                     parameters = point
                 )
                 # store the iteration, launch time and parameters for the new run
@@ -163,6 +165,9 @@ class Driver(ABC):
         ]
         return cols
     
+    def __get_opt_columns(self):
+        return []
+
     def normalise_parameters(self, v, bounds):
         return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
 

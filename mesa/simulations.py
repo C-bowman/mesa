@@ -26,11 +26,9 @@ class SimulationRun(ABC):
     timeout_hours: float
     job_queue = None
 
-    @abstractmethod
     def status(self):
         whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
         username = whoami.stdout.rstrip()
-
         squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
         self.job_queue = squeue.stdout
 
@@ -77,7 +75,7 @@ class Simulation(ABC):
         pass
 
     def create_case_directory(self,iteration,ref_directory,inputfiles):
-        self.casedir = ref_directory + f"iteration_{iteration}/"
+        self.casedir = ref_directory + f"/iteration_{iteration}/"
         self.reference_dir = ref_directory
 
         # create the case directory and copy all the reference files
@@ -114,6 +112,12 @@ class SolpsRun(SimulationRun):
         )
         deletions = [f for f in output_files if f not in allowed_files]
         [os.remove(self.directory + f) for f in deletions]
+
+    def __key(self):
+        return self.run_id, self.directory, self.iteration, self.launch_time
+
+    def __hash__(self):
+        return hash(self.__key())
 
 class SOLPS(Simulation):
     def __init__(self,
@@ -527,16 +531,21 @@ class VSimInterface:
 
 @dataclass(frozen=True)
 class VSimRun(SimulationRun):
-
+    slurm : bool
+    
     def status(self):
-        super().status()
-        if self.run_id not in self.job_queue:
-            balance_created = isfile(self.directory + "balance.nc")
-            status = "complete" if balance_created else "crashed"
-        elif (time() - self.launch_time) > self.timeout_hours * 3600.:
-            status = "timed-out"
+        if (self.slurm):
+            super().status()
+            if self.slurm and (self.run_id not in self.job_queue):
+                output_created = isfile(self.directory + "balance.nc")
+                status = "complete" if output_created else "crashed"
+            elif (time() - self.launch_time) > self.timeout_hours * 3600.:
+                status = "timed-out"
+            else:
+                status = "running"
         else:
-            status = "running"
+            status = "complete"
+
         return status
 
     def cleanup(self):
@@ -550,6 +559,12 @@ class VSimRun(SimulationRun):
         # )
         # deletions = [f for f in output_files if f not in allowed_files]
         # [os.remove(self.directory + f) for f in deletions]
+
+    def __key(self):
+        return self.run_id, self.directory, self.iteration, self.launch_time
+
+    def __hash__(self):
+        return hash(self.__key())
 
 class VSim(Simulation):
     base_input_file : str
@@ -626,7 +641,7 @@ class VSim(Simulation):
         if self.n_proc == 1:
             start_run = subprocess.Popen("vorpalser "+input_files[0], stdout=subprocess.PIPE, shell=True)
         if self.n_proc > 1:
-            start_run = subprocess.Popen("mpirun -np vorpal "+input_files[0], stdout=subprocess.PIPE, shell=True)
+            start_run = subprocess.Popen(f"mpirun -np {self.n_proc} vorpal "+input_files[0], stdout=subprocess.PIPE, shell=True)
 
         start_run_output = start_run.communicate()[0]
         os.chdir(self.reference_dir)
@@ -646,7 +661,8 @@ class VSim(Simulation):
             iteration=iteration,
             parameters=parameters,
             launch_time=time(),
-            timeout_hours=self.timeout_hours
+            timeout_hours=self.timeout_hours,
+            slurm=self.slurm
         )
 
     def get_data(self, path=None):

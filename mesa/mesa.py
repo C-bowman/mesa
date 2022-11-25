@@ -26,12 +26,13 @@ class Mesa:
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
         cols = self.driver.get_dataframe_columns()
-        index = MultiIndex.from_tuples((0,0), names=["iteration", "sub-iteration"])
+        index = MultiIndex.from_tuples([(0,0)], names=["iteration", "sub-iteration"])
         df = DataFrame(columns=cols, index=index)
+        print(df)
         df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
         del df
 
-    def parse_inputs(settings_filepath, check_training_data=False):
+    def parse_inputs(self, settings_filepath, check_training_data=False):
         """
         Checks whether the settings file exists, and contains all necessary
         fields, then returns its contents as a dictionary.
@@ -53,9 +54,9 @@ class Mesa:
         else:
             raise FileNotFoundError(
                 f"""
-                [ MESA error ]
-                >> The given string
-                >> '{settings_filepath}'
+                [ MESA error ] \
+                >> The given string \
+                >> '{settings_filepath}' \
                 >> is not a valid path to a settings module.
                 """
             )
@@ -63,7 +64,7 @@ class Mesa:
             'simulation', # simulation object
             'driver', # optimizers, parameter scan, etc.
             'objective_function', # objective function to optimize
-            'ref_directry', # directory where simulation data will go
+            'ref_directory', # directory where simulation data will go
             'training_data_file' # file for storing scan/opt data
         ]
 
@@ -72,15 +73,15 @@ class Mesa:
             if key not in settings:
                 raise KeyError(
                     f"""
-                    [ MESA error ]
-                    >> The '{key}' variable was not
+                    [ MESA error ] \
+                    >> The '{key}' variable was not \
                     >> found in the settings file.
                     """
                 )
 
         return settings
 
-    def logger_setup(settings_filepath):
+    def logger_setup(self, settings_filepath):
         path = settings_filepath[:-3] if settings_filepath.endswith('.py') else settings_filepath
         logging.basicConfig(
             filename=path + '.log',
