@@ -48,7 +48,7 @@ class WeightedObjectiveFunction:
         for dia in self.diagnostics:
             dia.update_interface(simulation_interface)
 
-        return sum([wgt*dia.log_likelihood(likelihood=gaussian_likelihood) for dia,wgt in zip(self.diagnostics,self.weights)])
+        return {"logprob" : sum([wgt*dia.log_likelihood(likelihood=gaussian_likelihood) for dia,wgt in zip(self.diagnostics,self.weights)])}
 
 class Spectrum(Diagnostic):
     frequency : float
