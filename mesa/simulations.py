@@ -10,8 +10,11 @@ from sims.interface import SolpsInterface
 
 import subprocess
 from os.path import isfile
-from abc import ABC
+from abc import ABC, abstractmethod
 import logging
+
+##########################################
+## Simulation Base Classes
 
 @dataclass(frozen=True)
 class SimulationRun(ABC):
@@ -70,7 +73,7 @@ class Simulation(ABC):
         pass
 
     @abstractmethod
-    def get_data(self,path=path):
+    def get_data(self,path=None):
         pass
 
     def create_case_directory(self,iteration,ref_directory,inputfiles):
@@ -327,7 +330,7 @@ class SOLPS(Simulation):
             timeout_hours=self.timeout_hours
         )
 
-    def get_data(path=None):
+    def get_data(self, path=None):
         """
         Returns interface to run data at provided path
         """
@@ -516,17 +519,7 @@ class SOLPS(Simulation):
 ##########################################
 ## VSim Classes
 
-import os
-from os.path import isfile
-from time import time
-import logging
-import subprocess
-from dataclasses import dataclass
-
-from mesa.simulations.simulation import Simulation
-from mesa.simulations.simulation import SimulationRun
-
-class VSimInterface():
+class VSimInterface:
     path : str
 
     def __init__(self,path):
@@ -583,6 +576,7 @@ class VSim(Simulation):
         # Write the list to a file
         for f in filenames:
             with open(f, 'w+') as f:
+                return
                 # change desired param values, throw error of one cannot be found
 
     def launch(self,
@@ -594,13 +588,13 @@ class VSim(Simulation):
         Evaluates VSim for the provided parameter values
 
         :param int iteration: \
-            The iteration number corresponding to the requested solps-run, used to name
-            directory in which the solps output is stored.
+        The iteration number corresponding to the requested solps-run, used to name
+        directory in which the solps output is stored.
 
         :param str reference_directory: \
-        
+
         :param list parameters:
-            The list of parameters to set in the input file \
+        The list of parameters to set in the input file \
 
         """
         filename = self.base_input_file.split('.')[0]
@@ -655,7 +649,7 @@ class VSim(Simulation):
             timeout_hours=self.timeout_hours
         )
 
-    def get_data(path=None):
+    def get_data(self, path=None):
         """
         Returns interface to run data at provided path
         """

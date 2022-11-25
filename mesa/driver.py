@@ -4,7 +4,7 @@ from pandas import read_hdf
 from inference.pdf import BinaryTree
 from numpy.random import default_rng
 from numpy import array
-from abc import ABC
+from abc import ABC, abstractmethod
 from time import sleep
 import subprocess
 import logging
