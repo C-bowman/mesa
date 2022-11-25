@@ -18,6 +18,7 @@ class Diagnostic(ABC):
 
 class WeightedObjectiveFunction:
     diagnostic : list
+    weights : list
 
     def __init__(self,diagnostics=None,weights=None):
         self.diagnostics = diagnostics
@@ -57,7 +58,7 @@ class Spectrum(Diagnostic):
         self.frequency = frequency
         self.goal = goal
 
-        if ((self.goal is not "minimize") and (self.goal is not "maximize")):
+        if ((self.goal != "minimize") and (self.goal != "maximize")):
             raise ValueError(
                 f"""
                 [ MESA ERROR ]
@@ -76,5 +77,5 @@ class Spectrum(Diagnostic):
     def update_interface(self,data):
         pass
     
-    def log_likelihood(self,likelihood=None):
-        pass
+    def log_likelihood(self,likelihood=None) -> float:
+        return 0.0
