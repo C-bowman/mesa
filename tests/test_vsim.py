@@ -42,12 +42,13 @@ from mesa.driver import GeneticOptimizer
 # parameters to fix or vary. To fix set as a single value. To vary set bounds as a tuple
 params = {
     # testing
-    "Parameter1" : (0.0, 1.0)
+    "Parameter1" : (0.0, 1.0),
+    "Parameter2" : (-10.0, 10.0)
 }
 
 driver = GeneticOptimizer(
     params,
     initial_sample_count = 0,
     max_iterations = 200,
-    pop_size=8
+    pop_size = 8
 )
