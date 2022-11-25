@@ -66,6 +66,7 @@ class Driver(ABC):
 
     def run(self, new_points=None):
         df = read_hdf(self.trainingfile, 'training')
+        self.fname = self.trainingfile.split('/')[-1] # get just name
         while not self.converged:
             current_runs = set()
             # get the current iteration number
@@ -120,9 +121,9 @@ class Driver(ABC):
                                 }
                                 new_row.update(logprobs)
                                 new_row.update(run.parameters)
-                                df = read_hdf(self.trainingfile, 'training')
+                                df = read_hdf(self.fname, 'training')
                                 df.loc[(itr,counter)] = new_row  # add the new row
-                                df.to_hdf(self.trainingfile, key='training', mode='w')  # save the data
+                                df.to_hdf(self.fname, key='training', mode='w')  # save the data
 
                                 # now the run results are saved we can stop tracking the run
                                 current_runs.remove(run)
@@ -349,7 +350,7 @@ class GPOptimizer(Optimizer):
         # load the training data
         df = read_hdf(self.trainingfile, 'training')
         # break the loop if we've hit the max number of iterations
-        if df['iteration'].max() >= self.max_iterations:
+        if df.index[-1][0] >= self.max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
             return None
 
@@ -553,7 +554,7 @@ class GeneticOptimizer(Optimizer):
         # load the training data
         df = read_hdf(self.trainingfile, 'training')
         # break the loop if we've hit the max number of iterations
-        if df['iteration'].max() >= self.max_iterations:
+        if df.index[-1][0] >= self.max_iterations:
             logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
             return None
 
