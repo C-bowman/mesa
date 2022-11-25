@@ -1,4 +1,4 @@
-from ..mesa.simulations import SOLPS
+from mesa.simulations import SOLPS
 from numpy import array, ndarray
 
 

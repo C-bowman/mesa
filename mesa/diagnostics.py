@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from numpy import sum
 import logging
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
