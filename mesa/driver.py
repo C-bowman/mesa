@@ -1,9 +1,10 @@
-from mesa.simulations.simulation import Simulation, SimulationRun
+from mesa.simulations import Simulation, SimulationRun
 from mesa.diagnostics import WeightedObjectiveFunction
 from pandas import read_hdf
 from inference.pdf import BinaryTree
 from numpy.random import default_rng
-from numpy import array
+from numpy import array, ndarray
+from inference.gp import GpRegressor, GpOptimiser
 from abc import ABC, abstractmethod
 from time import sleep
 import subprocess
@@ -408,8 +409,7 @@ class GPOptimizer(Optimizer):
 
         return [param_dict]
         
-    from inference.gp import GpRegressor, GpOptimiser
-    def __propose_evaluation(
+    def __propose_evaluation(self,
         log_posterior: ndarray,
         normalised_parameters,
         kernel,
@@ -508,7 +508,8 @@ class GeneticOptimizer(Optimizer):
         super().__init__(self, 
             params, 
             initial_sample_count=initial_sample_count, 
-            max_iterations=max_iterations
+            max_iterations=max_iterations,
+            concurrent_runs=1
         )
         self.pop_size=pop_size
         self.current_generation = 0

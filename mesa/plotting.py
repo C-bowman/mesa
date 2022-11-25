@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from pandas import read_hdf
 
 from mesa import normalise_parameters
-from mesa.parsing import parse_inputs, check_error_model
-from mesa.parameters import conductivity_profile, diffusivity_profile
+from mesa.mesa import parse_inputs, check_error_model
+from mesa import conductivity_profile, diffusivity_profile
 from inference.plotting import matrix_plot
 from inference.gp import GpRegressor
 

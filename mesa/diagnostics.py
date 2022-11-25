@@ -17,7 +17,7 @@ class Diagnostic(ABC):
         pass
 
 class WeightedObjectiveFunction:
-    diagnostic : list(Diagnostic)
+    diagnostic : list
 
     def __init__(self,diagnostics=None,weights=None):
         self.diagnostics = diagnostics
@@ -42,9 +42,39 @@ class WeightedObjectiveFunction:
                 """
             )
     
-    def evaluate(self, simulation_interface=si):
+    def evaluate(self, simulation_interface=None):
         # update the diagnostics with the latest data
         for dia in self.diagnostics:
-            dia.update_interface(si)
+            dia.update_interface(simulation_interface)
 
         return sum([wgt*dia.log_likelihood(likelihood=gaussian_likelihood) for dia,wgt in zip(self.diagnostics,self.weights)])
+
+class Spectrum(Diagnostic):
+    frequency : float
+    goal : str
+
+    def __init__(self, frequency=None, goal=None):
+        self.frequency = frequency
+        self.goal = goal
+
+        if ((self.goal is not "minimize") and (self.goal is not "maximize")):
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> Spectrum goal should either be "minimize" or "maximize"
+                """
+            )
+        
+        if type(self.frequency) is not float:
+            raise ValueError(
+                f"""
+                [ MESA ERROR ]
+                >> Spectrum frequency should be a float
+                """
+            )
+
+    def update_interface(self,data):
+        pass
+    
+    def log_likelihood(self,likelihood=None):
+        pass

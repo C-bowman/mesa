@@ -623,9 +623,9 @@ class VSim(Simulation):
                 >>   correct path.
                 """
             )
-        if n_proc == 1:
+        if self.n_proc == 1:
             start_run = subprocess.Popen("vorpalser "+input_files[0], stdout=subprocess.PIPE, shell=True)
-        if n_proc > 1:
+        if self.n_proc > 1:
             start_run = subprocess.Popen("mpirun -np vorpal "+input_files[0], stdout=subprocess.PIPE, shell=True)
 
         start_run_output = start_run.communicate()[0]
