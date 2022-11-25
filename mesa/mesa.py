@@ -6,8 +6,8 @@ from pandas import DataFrame, MultiIndex
 class Mesa:
     settings_filepath : str
 
-    def __init__(self):
-        self.settings = self.__parse_inputs(filepath)
+    def __init__(self, filepath=None):
+        self.settings = self.parse_inputs(filepath)
         self.reffile = self.settings['training_data_file']
         self.simpath = self.settings['ref_directory']
         self.driver = self.settings["driver"]
@@ -31,7 +31,7 @@ class Mesa:
         df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
         del df
 
-    def __parse_inputs(settings_filepath, check_training_data=False):
+    def parse_inputs(settings_filepath, check_training_data=False):
         """
         Checks whether the settings file exists, and contains all necessary
         fields, then returns its contents as a dictionary.
