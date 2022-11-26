@@ -32,6 +32,7 @@ class Driver(ABC):
     optimization_bounds = {}
     free_parameter_keys = []
     fixed_parameter_keys = []
+    opt_cols = []
 
     def __init__(self, params, initial_sample_count, concurrent_runs, max_iterations):
         self.parameters = params
@@ -45,8 +46,9 @@ class Driver(ABC):
     def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
         self.simulation = sim
         self.objective_function = objfn
-        self.trainingfile = trainingfile
-        self.reference_dir = os.path.dirname(os.path.abspath(self.trainingfile))
+        self.reference_dir = os.path.dirname(os.path.abspath(trainingfile))
+        self.trainingfile = trainingfile.split('/')[-1]
+        os.chdir(self.reference_dir)
         
     @abstractmethod
     def get_next_points(self):
@@ -64,13 +66,18 @@ class Driver(ABC):
                 """
             )
 
-    def run(self, new_points=None):
+    def run(self, new_points=None, start_iter=False):
         df = read_hdf(self.trainingfile, 'training')
+        print(new_points)
         self.fname = self.trainingfile.split('/')[-1] # get just name
         while not self.converged:
             current_runs = set()
             # get the current iteration number
-            itr = df.index[-1][0] + 1
+            if start_iter:
+                itr = 0
+            else:
+                itr = df.index[-1][0] + 1
+
             if itr > self.max_iterations:
                 logging.info('maximum iterations reached without convergence')
                 break
@@ -82,6 +89,8 @@ class Driver(ABC):
 
             # Run simulation for the new point
             for counter,point in enumerate(new_points):
+                print(f"Sub-iteration {counter} - New parameters:")
+                print([point[k] for k in self.free_parameter_keys])
                 logging.info(f"Sub-iteration {counter} - New parameters:")
                 logging.info([point[k] for k in self.free_parameter_keys])
                 thisrun = self.simulation.launch(
@@ -113,16 +122,12 @@ class Driver(ABC):
                                 )
 
                                 # build a new row for the dataframe
-                                new_row = {
-                                    "iteration": run.iteration,
-                                    "prediction_mean": None,
-                                    "prediction_error": None,
-                                    "prediction_metric": None
-                                }
+                                new_row = {}
                                 new_row.update(logprobs)
                                 new_row.update(run.parameters)
                                 df = read_hdf(self.fname, 'training')
-                                df.loc[(itr,counter)] = new_row  # add the new row
+                                print(new_row)
+                                df.loc[(itr,counter),:] = new_row  # add the new row
                                 df.to_hdf(self.fname, key='training', mode='w')  # save the data
 
                                 # now the run results are saved we can stop tracking the run
@@ -149,7 +154,13 @@ class Driver(ABC):
                         # if we're already at maximum concurrent runs, pause for a bit before re-checking
                         if len(current_runs) == self.concurrent_runs:
                             sleep(30)
-
+            
+            # reset points so another set will be asked for next iteration
+            new_points = None
+            # if this is the starting iteration called from init, only do one loop iteration
+            if start_iter:
+                break
+    
     def get_dataframe_columns(self):
         """
         Returns a combination of columns for the pandas dataFrame and
@@ -158,10 +169,8 @@ class Driver(ABC):
         by the derived driver, while the parameter keys are read from
         the input file by the base driver class.
         """
-        opt_cols = self.__get_opt_columns()
         cols = [
-            'iteration',
-            *opt_cols,
+            *self.opt_cols,
             *self.parameter_keys
         ]
         return cols
@@ -246,6 +255,16 @@ class GPOptimizer(Optimizer):
         self.error_model = error_model
         self.trust_region_width = trust_region_width
 
+        self.opt_cols = [
+            'gaussian_logprob',
+            'cauchy_logprob',
+            'laplace_logprob',
+            'logistic_logprob',
+            'prediction_mean',
+            'prediction_error',
+            'convergence_metric'
+        ]
+
     def initialize(self, sim, objfn, trainingfile):
         super().initialize(sim, objfn, trainingfile)
         df = read_hdf(self.trainingfile, 'training')
@@ -312,7 +331,6 @@ class GPOptimizer(Optimizer):
 
                     # build a new row for the dataframe
                     new_row = {
-                        "iteration": run.iteration,
                         "prediction_mean": None,
                         "prediction_error": None,
                         "prediction_metric": None
@@ -320,7 +338,7 @@ class GPOptimizer(Optimizer):
                     new_row.update(logprobs)
                     new_row.update(run.parameters)
                     df = read_hdf(self.trainingfile, 'training')
-                    df.loc[(run.iteration,0)] = new_row  # add the new row
+                    df.loc[(run.iteration,0),:] = new_row  # add the new row
                     df.to_hdf(self.trainingfile, key='training', mode='w')  # save the data
 
                     # now the run results are saved we can stop tracking the run
@@ -483,26 +501,11 @@ class GPOptimizer(Optimizer):
 
         return new_point, metrics
 
-    def __get_opt_columns():
-        """
-        Returns the columns needed in the data file for GPO
-        """
-        # define what columns will be in the dataframe specific to the optimiation technique
-        cols = [
-            'gaussian_logprob',
-            'cauchy_logprob',
-            'laplace_logprob',
-            'logistic_logprob',
-            'prediction_mean',
-            'prediction_error',
-            'convergence_metric'
-        ]
-        return cols
-
 class GeneticOptimizer(Optimizer):
 
     population : list
     generations : list
+    mutation_rate = 0.1 # 10% mutation rate
 
     def __init__(self, 
         params : dict, 
@@ -521,6 +524,9 @@ class GeneticOptimizer(Optimizer):
         self.current_generation = 0
         self.population = []
         self.generations = []
+        self.opt_cols = [
+            'logprob'
+        ]
     
     def breed(self,p1,p2):
         return
@@ -543,7 +549,7 @@ class GeneticOptimizer(Optimizer):
         self.generations.append(self.population)
 
         # run the simulations
-        self.run(new_points=self.population)
+        self.run(new_points=self.population,start_iter=True)
 
         return
     
@@ -559,30 +565,39 @@ class GeneticOptimizer(Optimizer):
             return None
 
         # extract the training data
-        fom = df['logprob']
+        # sort by figure of merit
+        fom = df['logprob'].values[-(self.pop_size):]
+        print(fom.argsort())
+        lastpop = [self.population[ii] for ii in fom.argsort()]
 
-        lastpop = self.generations[-1]
-        for i in range(self.pop_size):
+        # take two best and pass them into the next population
+        self.population[-1] = lastpop[0]
+        self.population[-2] = lastpop[1]
+
+        # remove all but top 50%
+        ntop = int(0.5 * self.pop_size)
+        lastpop = lastpop[0:ntop]
+
+        for i in range(self.pop_size-2):
             # sort last population by FoM
             # remove all but top 20%
             # interbreed that 20%, adding a mutation every now and then
-            self.population[i] = lastpop[i]
+            r1 = int(self.rng.random() * ntop)
+            r2 = r1
+            while r2 == r1:
+                r2 = int(self.rng.random() * ntop)
+
+            for k in self.free_parameter_keys:
+                self.population[i][k] = 0.5*(lastpop[r1][k] + lastpop[r2][k])
+                if (self.rng.random() < self.mutation_rate):
+                    bnds = self.optimization_bounds[k]
+                    self.population[i][k] = (bnds[1]-bnds[0])*self.rng.random()+bnds[0]
 
         self.generations.append(self.population)
 
         logging.info("New population:")
         logging.info([[param_dict[k] for k in self.free_parameter_keys] for param_dict in self.population])
 
-        return self.generations[-1]
-
-    def __get_opt_columns():
-        """
-        Returns the columns needed in the data file for GPO
-        """
-        # define what columns will be in the dataframe specific to the optimiation technique
-        cols = [
-            'logprob'
-        ]
-        return cols
+        return self.generations[-1]   
 
 #class GradientDescent(Optimizer):

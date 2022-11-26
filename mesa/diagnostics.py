@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from numpy import sum
 import logging
+import numpy as np
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
 class Diagnostic(ABC):
@@ -78,4 +79,4 @@ class Spectrum(Diagnostic):
         pass
     
     def log_likelihood(self,likelihood=None) -> float:
-        return 0.0
+        return np.random.random()
