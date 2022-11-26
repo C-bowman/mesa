@@ -68,7 +68,6 @@ class Driver(ABC):
 
     def run(self, new_points=None, start_iter=False):
         df = read_hdf(self.trainingfile, 'training')
-        print(new_points)
         self.fname = self.trainingfile.split('/')[-1] # get just name
         while not self.converged:
             current_runs = set()
@@ -89,8 +88,6 @@ class Driver(ABC):
 
             # Run simulation for the new point
             for counter,point in enumerate(new_points):
-                print(f"Sub-iteration {counter} - New parameters:")
-                print([point[k] for k in self.free_parameter_keys])
                 logging.info(f"Sub-iteration {counter} - New parameters:")
                 logging.info([point[k] for k in self.free_parameter_keys])
                 thisrun = self.simulation.launch(
@@ -126,7 +123,6 @@ class Driver(ABC):
                                 new_row.update(logprobs)
                                 new_row.update(run.parameters)
                                 df = read_hdf(self.fname, 'training')
-                                print(new_row)
                                 df.loc[(itr,counter),:] = new_row  # add the new row
                                 df.to_hdf(self.fname, key='training', mode='w')  # save the data
 
@@ -567,26 +563,23 @@ class GeneticOptimizer(Optimizer):
         # extract the training data
         # sort by figure of merit
         fom = df['logprob'].values[-(self.pop_size):]
-        print(fom.argsort())
         lastpop = [self.population[ii] for ii in fom.argsort()]
 
         # take two best and pass them into the next population
         self.population[-1] = lastpop[0]
         self.population[-2] = lastpop[1]
 
-        # remove all but top 50%
+        # remove all but top 50% and breed the remaining
         ntop = int(0.5 * self.pop_size)
         lastpop = lastpop[0:ntop]
 
         for i in range(self.pop_size-2):
-            # sort last population by FoM
-            # remove all but top 20%
-            # interbreed that 20%, adding a mutation every now and then
+            # choose two random indices
             r1 = int(self.rng.random() * ntop)
             r2 = r1
             while r2 == r1:
                 r2 = int(self.rng.random() * ntop)
-
+            # average the two chosen, occasionally mutate a parameter
             for k in self.free_parameter_keys:
                 self.population[i][k] = 0.5*(lastpop[r1][k] + lastpop[r2][k])
                 if (self.rng.random() < self.mutation_rate):
