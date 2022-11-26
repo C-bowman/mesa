@@ -28,7 +28,6 @@ class Mesa:
         cols = self.driver.get_dataframe_columns()
         index = MultiIndex.from_tuples([(0,0)], names=["iteration", "sub-iteration"])
         df = DataFrame(columns=cols, index=index)
-        print(df)
         df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
         del df
 
