@@ -13,4 +13,5 @@ from time import sleep
 from os.path import isfile
 import logging
 
+logging.basicConfig(encoding='utf-8', level=logging.INFO)
 logging.basicConfig(filename='runlog.log', encoding='utf-8', level=logging.DEBUG)
