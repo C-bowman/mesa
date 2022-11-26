@@ -528,11 +528,17 @@ class VSimInterface:
 
     def __init__(self,path):
         self.path = path
+    
+    def getE(self, dataslice):
+        return 0.0
+
+    def getTime(self):
+        return 0.0
 
 @dataclass(frozen=True)
 class VSimRun(SimulationRun):
     slurm : bool
-    
+
     def status(self):
         if (self.slurm):
             super().status()
@@ -627,21 +633,14 @@ class VSim(Simulation):
         # Go to the SOLPS run directory to prepare execution
         os.chdir(self.casedir)
 
-        # source
-        try:
-            src = subprocess.Popen("source "+self.exe, stdout=subprocess.PIPE, shell=True)
-        except:
-            raise Exception(
-                f"""
-                [ MESA ERROR ]
-                >> Unable to source vorpalall.sh or VSimComposer.sh, please provide
-                >>   correct path.
-                """
-            )
         if self.n_proc == 1:
-            start_run = subprocess.Popen("vorpalser "+input_files[0], stdout=subprocess.PIPE, shell=True)
+            command = "source " + self.exe + " ; vorpalser -i "+input_files[0]
+            logging.info("Executing command: "+command)
+            start_run = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
         if self.n_proc > 1:
-            start_run = subprocess.Popen(f"mpirun -np {self.n_proc} vorpal "+input_files[0], stdout=subprocess.PIPE, shell=True)
+            command = "source " + self.exe + f" ; mpirun -np {self.n_proc} vorpal -i "+input_files[0]
+            logging.info("Executing command: "+command)
+            start_run = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
 
         start_run_output = start_run.communicate()[0]
         os.chdir(self.reference_dir)
