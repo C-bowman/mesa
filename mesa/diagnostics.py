@@ -76,7 +76,24 @@ class Spectrum(Diagnostic):
             )
 
     def update_interface(self,data):
-        pass
-    
+        dataslice = [0.5,0.5,0.5]
+        self.E = data.getE(dataslice)
+        self.t = data.getTime()
+        self.ff = np.fft.fft(E,axis=t)
+        self.freqaxis = np.fft.fftfreq(t,d=self.t[1]-self.t[0])
+
     def log_likelihood(self,likelihood=None) -> float:
-        return np.random.random()
+        ilow = 0
+        ihigh = len(self.freqaxis)
+        for i,f in enumerate(self.freqaxis):
+            if f < self.frequency and ilow < i :
+                ilow = i
+            elif f > self.frequency and ihigh > i:
+                ihigh = i
+        wgt = ( self.freqaxis[ihigh] - self.frequency ) / (self.freqaxis[ihigh] - self.freqaxis[ilow])
+        content = wgt * self.ff[ilow] + (1.-wgt) * self.ff[ihigh]
+        
+        if self.goal == "maximize":
+            return 1.-content
+        else:
+            return content
