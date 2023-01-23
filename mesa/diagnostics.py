@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from numpy import sum
-import logging
 import numpy as np
-from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
+from sims.likelihoods import gaussian_likelihood
+
 
 class Diagnostic(ABC):
     """

@@ -6,8 +6,8 @@ import subprocess
 from dataclasses import dataclass
 from numpy import sum
 
-from mesa.models import linear_transport_profile, profile_radius_axis
-from mesa.parameters import conductivity_profile, diffusivity_profile, required_parameters
+from mesa.simulations.solps.models import linear_transport_profile, profile_radius_axis
+from mesa.simulations.solps.parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
