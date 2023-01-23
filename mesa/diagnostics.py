@@ -19,23 +19,14 @@ class Diagnostic(ABC):
 
 
 class WeightedObjectiveFunction:
-    diagnostic: list
-    weights: list
-
-    def __init__(self, diagnostics=None, weights=None):
+    def __init__(self, diagnostics: list, weights: list = None):
         self.diagnostics = diagnostics
         self.weights = weights
-        if self.diagnostics is None:
-            raise ValueError(
-                f"""
-                [ MESA ERROR ]
-                >> No diagnostics were provided to WeightedObjectiveFunction,
-                >> but at least one is required.
-                """
-            )
+
         if self.weights is None:
-            self.weights = [1.0 for dia in self.diagnostics]
-        if len(self.weights) is not len(self.diagnostics):
+            self.weights = [1.0 for _ in self.diagnostics]
+
+        if len(self.weights) != len(self.diagnostics):
             raise ValueError(
                 f"""
                 [ MESA ERROR ]
@@ -61,14 +52,11 @@ class WeightedObjectiveFunction:
 
 
 class Spectrum(Diagnostic):
-    frequency: float
-    goal: str
-
-    def __init__(self, frequency=None, goal=None):
+    def __init__(self, frequency: float, goal: str):
         self.frequency = frequency
         self.goal = goal
 
-        if (self.goal != "minimize") and (self.goal != "maximize"):
+        if self.goal not in ["minimize", "maximize"]:
             raise ValueError(
                 f"""
                 [ MESA ERROR ]
