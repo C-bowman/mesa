@@ -20,11 +20,11 @@ class Driver(ABC):
     """
 
     simulation: Simulation
-    ojective_function: WeightedObjectiveFunction
+    objective_function: WeightedObjectiveFunction
     concurrent_runs: int
     initial_sample_count: int
     max_iterations: int
-    trainingfile: str
+    training_file: str
     reference_dir: str
     parameter_keys = []
     converged = bool
@@ -46,12 +46,12 @@ class Driver(ABC):
         self.converged = False
 
     def initialize(
-        self, sim: Simulation, objfn: WeightedObjectiveFunction, trainingfile: str
+        self, sim: Simulation, objfn: WeightedObjectiveFunction, training_file: str
     ):
         self.simulation = sim
         self.objective_function = objfn
-        self.reference_dir = os.path.dirname(os.path.abspath(trainingfile))
-        self.trainingfile = trainingfile.split("/")[-1]
+        self.reference_dir = os.path.dirname(os.path.abspath(training_file))
+        self.training_file = training_file.split("/")[-1]
         os.chdir(self.reference_dir)
 
     @abstractmethod
@@ -71,8 +71,8 @@ class Driver(ABC):
             )
 
     def run(self, new_points=None, start_iter=False):
-        df = read_hdf(self.trainingfile, "training")
-        self.fname = self.trainingfile.split("/")[-1]  # get just name
+        df = read_hdf(self.training_file, "training")
+        self.fname = self.training_file.split("/")[-1]  # get just name
         while not self.converged:
             current_runs = set()
             # get the current iteration number
@@ -102,8 +102,8 @@ class Driver(ABC):
                 # store the iteration, launch time and parameters for the new run
                 current_runs.add(thisrun)
 
-                # check statuses if we have hit the max concurent runs or if we are on the
-                #  last of this set of points
+                # check statuses if we have hit the max concurrent runs or if we are on
+                # the last of this set of points
                 if (
                     len(current_runs) >= self.concurrent_runs
                     or counter == len(new_points) - 1
@@ -146,15 +146,9 @@ class Driver(ABC):
                                 logging.info(
                                     f">> iteration {run.iteration}, job {run.run_id} has crashed"
                                 )
-                                current_runs.remove(
-                                    run
-                                )  # remove it from the current runs
-                                subprocess.run(
-                                    ["rm", "-r", run.directory]
-                                )  # remove its run directory
-                                current_runs_iterable.append(
-                                    run.iteration
-                                )  # add the iteration number back to the queue
+                                current_runs.remove(run)  # remove it from the current runs
+                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
 
                             elif run_status == "timed-out":
                                 logging.info("[ time-out warning ]")
@@ -162,15 +156,9 @@ class Driver(ABC):
                                     f">> iteration {run.iteration}, job {run.run_id} has timed-out"
                                 )
                                 run.cancel()  # cancel the timed-out job
-                                current_runs.remove(
-                                    run
-                                )  # remove it from the current runs
-                                subprocess.run(
-                                    ["rm", "-r", run.directory]
-                                )  # remove its run directory
-                                current_runs_iterable.append(
-                                    run.iteration
-                                )  # add the iteration number back to the queue
+                                current_runs.remove(run)  # remove it from the current runs
+                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
 
                         # if we're already at maximum concurrent runs, pause for a bit before re-checking
                         if len(current_runs) == self.concurrent_runs:
@@ -287,7 +275,7 @@ class GPOptimizer(Optimizer):
 
     def initialize(self, sim, objfn, trainingfile):
         super().initialize(sim, objfn, trainingfile)
-        df = read_hdf(self.trainingfile, "training")
+        df = read_hdf(self.training_file, "training")
         current_iterations = 0 if df["iteration"].size == 0 else df["iteration"].max()
         if current_iterations >= self.initial_sample_count:
             raise ValueError(
@@ -357,10 +345,10 @@ class GPOptimizer(Optimizer):
                     }
                     new_row.update(logprobs)
                     new_row.update(run.parameters)
-                    df = read_hdf(self.trainingfile, "training")
+                    df = read_hdf(self.training_file, "training")
                     df.loc[(run.iteration, 0), :] = new_row  # add the new row
                     df.to_hdf(
-                        self.trainingfile, key="training", mode="w"
+                        self.training_file, key="training", mode="w"
                     )  # save the data
 
                     # now the run results are saved we can stop tracking the run
@@ -396,7 +384,7 @@ class GPOptimizer(Optimizer):
 
     def get_next_points(self):
         # load the training data
-        df = read_hdf(self.trainingfile, "training")
+        df = read_hdf(self.training_file, "training")
         # break the loop if we've hit the max number of iterations
         if df.index[-1][0] >= self.max_iterations:
             logging.info(
@@ -597,7 +585,7 @@ class GeneticOptimizer(Optimizer):
         Get next generation
         """
         # load the training data
-        df = read_hdf(self.trainingfile, "training")
+        df = read_hdf(self.training_file, "training")
         # break the loop if we've hit the max number of iterations
         if df.index[-1][0] >= self.max_iterations:
             logging.info(
