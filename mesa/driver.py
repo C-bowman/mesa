@@ -11,12 +11,14 @@ import subprocess
 import logging
 import os
 
+
 class Driver(ABC):
     """
     Base class for all drivers, holds list of parameters and their
     limits in a single dictionary. Also holds the simulation
     object that it will launch with parameter values
     """
+
     simulation: Simulation
     ojective_function: WeightedObjectiveFunction
     concurrent_runs: int
@@ -43,20 +45,22 @@ class Driver(ABC):
         self.rng = default_rng()
         self.converged = False
 
-    def initialize(self, sim:Simulation, objfn:WeightedObjectiveFunction, trainingfile:str):
+    def initialize(
+        self, sim: Simulation, objfn: WeightedObjectiveFunction, trainingfile: str
+    ):
         self.simulation = sim
         self.objective_function = objfn
         self.reference_dir = os.path.dirname(os.path.abspath(trainingfile))
-        self.trainingfile = trainingfile.split('/')[-1]
+        self.trainingfile = trainingfile.split("/")[-1]
         os.chdir(self.reference_dir)
-        
+
     @abstractmethod
     def get_next_points(self):
         pass
 
     def check_error_model(self, error_model):
-        if error_model.lower() in {'gaussian', 'cauchy', 'laplace', 'logistic'}:
-            return error_model.lower() + '_logprob'
+        if error_model.lower() in {"gaussian", "cauchy", "laplace", "logistic"}:
+            return error_model.lower() + "_logprob"
         else:
             raise ValueError(
                 f"""
@@ -67,8 +71,8 @@ class Driver(ABC):
             )
 
     def run(self, new_points=None, start_iter=False):
-        df = read_hdf(self.trainingfile, 'training')
-        self.fname = self.trainingfile.split('/')[-1] # get just name
+        df = read_hdf(self.trainingfile, "training")
+        self.fname = self.trainingfile.split("/")[-1]  # get just name
         while not self.converged:
             current_runs = set()
             # get the current iteration number
@@ -78,34 +82,37 @@ class Driver(ABC):
                 itr = df.index[-1][0] + 1
 
             if itr > self.max_iterations:
-                logging.info('maximum iterations reached without convergence')
+                logging.info("maximum iterations reached without convergence")
                 break
             logging.info(f"--- Starting iteration {itr} ---")
 
             # get next set of points for this iteration
-            if (new_points==None):
+            if new_points == None:
                 new_points = self.get_next_points()
 
             # Run simulation for the new point
-            for counter,point in enumerate(new_points):
+            for counter, point in enumerate(new_points):
                 logging.info(f"Sub-iteration {counter} - New parameters:")
                 logging.info([point[k] for k in self.free_parameter_keys])
                 thisrun = self.simulation.launch(
-                    iteration = str(itr)+'_'+str(counter),
-                    directory = self.reference_dir,
-                    parameters = point
+                    iteration=str(itr) + "_" + str(counter),
+                    directory=self.reference_dir,
+                    parameters=point,
                 )
                 # store the iteration, launch time and parameters for the new run
                 current_runs.add(thisrun)
 
-                # check statuses if we have hit the max concurent runs or if we are on the 
+                # check statuses if we have hit the max concurent runs or if we are on the
                 #  last of this set of points
-                if (len(current_runs) >= self.concurrent_runs or counter == len(new_points)-1):
+                if (
+                    len(current_runs) >= self.concurrent_runs
+                    or counter == len(new_points) - 1
+                ):
                     while len(current_runs) > 0 or len(current_runs) > 0:
                         # loop through all currently running jobs to check if
                         #  they have finished or timed-out
                         current_runs_iterable = [run for run in current_runs]
-                        run : SimulationRun
+                        run: SimulationRun
                         for run in current_runs_iterable:
 
                             run_status = run.status()
@@ -122,9 +129,11 @@ class Driver(ABC):
                                 new_row = {}
                                 new_row.update(logprobs)
                                 new_row.update(run.parameters)
-                                df = read_hdf(self.fname, 'training')
-                                df.loc[(itr,counter),:] = new_row  # add the new row
-                                df.to_hdf(self.fname, key='training', mode='w')  # save the data
+                                df = read_hdf(self.fname, "training")
+                                df.loc[(itr, counter), :] = new_row  # add the new row
+                                df.to_hdf(
+                                    self.fname, key="training", mode="w"
+                                )  # save the data
 
                                 # now the run results are saved we can stop tracking the run
                                 current_runs.remove(run)
@@ -134,29 +143,45 @@ class Driver(ABC):
 
                             elif run_status == "crashed":
                                 logging.info("[ crash warning ]")
-                                logging.info(f">> iteration {run.iteration}, job {run.run_id} has crashed")
-                                current_runs.remove(run)  # remove it from the current runs
-                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
+                                logging.info(
+                                    f">> iteration {run.iteration}, job {run.run_id} has crashed"
+                                )
+                                current_runs.remove(
+                                    run
+                                )  # remove it from the current runs
+                                subprocess.run(
+                                    ["rm", "-r", run.directory]
+                                )  # remove its run directory
+                                current_runs_iterable.append(
+                                    run.iteration
+                                )  # add the iteration number back to the queue
 
                             elif run_status == "timed-out":
                                 logging.info("[ time-out warning ]")
-                                logging.info(f">> iteration {run.iteration}, job {run.run_id} has timed-out")
+                                logging.info(
+                                    f">> iteration {run.iteration}, job {run.run_id} has timed-out"
+                                )
                                 run.cancel()  # cancel the timed-out job
-                                current_runs.remove(run)  # remove it from the current runs
-                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
+                                current_runs.remove(
+                                    run
+                                )  # remove it from the current runs
+                                subprocess.run(
+                                    ["rm", "-r", run.directory]
+                                )  # remove its run directory
+                                current_runs_iterable.append(
+                                    run.iteration
+                                )  # add the iteration number back to the queue
 
                         # if we're already at maximum concurrent runs, pause for a bit before re-checking
                         if len(current_runs) == self.concurrent_runs:
                             sleep(30)
-            
+
             # reset points so another set will be asked for next iteration
             new_points = None
             # if this is the starting iteration called from init, only do one loop iteration
             if start_iter:
                 break
-    
+
     def get_dataframe_columns(self):
         """
         Returns a combination of columns for the pandas dataFrame and
@@ -165,31 +190,28 @@ class Driver(ABC):
         by the derived driver, while the parameter keys are read from
         the input file by the base driver class.
         """
-        cols = [
-            *self.opt_cols,
-            *self.parameter_keys
-        ]
+        cols = [*self.opt_cols, *self.parameter_keys]
         return cols
-    
+
     def __get_opt_columns(self):
         return []
 
     def normalise_parameters(self, v, bounds):
-        return array([(k-b[0])/(b[1]-b[0]) for k, b in zip(v, bounds)])
+        return array([(k - b[0]) / (b[1] - b[0]) for k, b in zip(v, bounds)])
 
     def reverse_normalisation(self, v, bounds):
         return array([b[0] + (b[1] - b[0]) * k for k, b in zip(v, bounds)])
 
     def grid_transform(self, point):
-        tree = BinaryTree(limits=(0., 1.), layers=6)
+        tree = BinaryTree(limits=(0.0, 1.0), layers=6)
         return tuple([tree.lookup(v)[2] for v in point])
 
     def hypercube_sample(self, bounds):
-        return [b[0] + (b[1]-b[0])*self.rng.random() for b in bounds]
+        return [b[0] + (b[1] - b[0]) * self.rng.random() for b in bounds]
 
     def uniform_sample(self, bounds):
-        return bounds[0] + (bounds[1]-bounds[0])*self.rng.random()
-    
+        return bounds[0] + (bounds[1] - bounds[0]) * self.rng.random()
+
     def __parse_params(self):
         """
         Method to parse the input parameters. Need to check which are fixed
@@ -198,10 +220,12 @@ class Driver(ABC):
         self.parameter_keys = [key for key in self.parameters.keys()]
         # find which parameters are tuples of limits and which are a single number (fixed)
         for key in self.parameter_keys:
-            if isinstance(self.parameters[key],tuple):
+            if isinstance(self.parameters[key], tuple):
                 self.optimization_bounds[key] = self.parameters[key]
                 self.free_parameter_keys.append(key)
-            elif isinstance(self.parameters[key],float) or isinstance(self.parameters[key],int):
+            elif isinstance(self.parameters[key], float) or isinstance(
+                self.parameters[key], int
+            ):
                 self.fixed_parameter_values[key] = self.parameters[key]
                 self.fixed_parameter_keys.append(key)
             else:
@@ -215,34 +239,34 @@ class Driver(ABC):
                 )
         self.num_free_parameters = len(self.free_parameter_keys)
 
+
 class Optimizer(Driver):
-    def __init__(self, 
-        params, 
-        initial_sample_count=0, 
-        max_iterations=200,
-        concurrent_runs=1
+    def __init__(
+        self, params, initial_sample_count=0, max_iterations=200, concurrent_runs=1
     ):
-        super().__init__(params,initial_sample_count,concurrent_runs,max_iterations)
+        super().__init__(params, initial_sample_count, concurrent_runs, max_iterations)
+
 
 class GPOptimizer(Optimizer):
-
-    def __init__(self, 
-        params, 
-        initial_sample_count=20, 
+    def __init__(
+        self,
+        params,
+        initial_sample_count=20,
         max_iterations=200,
-        concurrent_runs = 1,
-        covariance_kernel = None,
-        mean_function = None,
-        acquisition_function = None,
-        cross_validation = False,
-        error_model = 'cauchy',
-        trust_region_width = 0.3
+        concurrent_runs=1,
+        covariance_kernel=None,
+        mean_function=None,
+        acquisition_function=None,
+        cross_validation=False,
+        error_model="cauchy",
+        trust_region_width=0.3,
     ):
-        super().__init__(self, 
-            params, 
-            initial_sample_count=initial_sample_count, 
+        super().__init__(
+            self,
+            params,
+            initial_sample_count=initial_sample_count,
             max_iterations=max_iterations,
-            concurrent_runs=concurrent_runs
+            concurrent_runs=concurrent_runs,
         )
         self.covariance_kernel = covariance_kernel
         self.mean_function = mean_function
@@ -252,19 +276,19 @@ class GPOptimizer(Optimizer):
         self.trust_region_width = trust_region_width
 
         self.opt_cols = [
-            'gaussian_logprob',
-            'cauchy_logprob',
-            'laplace_logprob',
-            'logistic_logprob',
-            'prediction_mean',
-            'prediction_error',
-            'convergence_metric'
+            "gaussian_logprob",
+            "cauchy_logprob",
+            "laplace_logprob",
+            "logistic_logprob",
+            "prediction_mean",
+            "prediction_error",
+            "convergence_metric",
         ]
 
     def initialize(self, sim, objfn, trainingfile):
         super().initialize(sim, objfn, trainingfile)
-        df = read_hdf(self.trainingfile, 'training')
-        current_iterations = 0 if df['iteration'].size == 0 else df['iteration'].max()
+        df = read_hdf(self.trainingfile, "training")
+        current_iterations = 0 if df["iteration"].size == 0 else df["iteration"].max()
         if current_iterations >= self.initial_sample_count:
             raise ValueError(
                 f"""
@@ -275,7 +299,9 @@ class GPOptimizer(Optimizer):
                 """
             )
         # build a queue of the additional iterations which are required
-        iteration_queue = [i for i in range(current_iterations + 1, self.initial_sample_count + 1)][::-1]
+        iteration_queue = [
+            i for i in range(current_iterations + 1, self.initial_sample_count + 1)
+        ][::-1]
 
         # loop until enough samples have been evaluated
         current_runs = set()
@@ -301,9 +327,7 @@ class GPOptimizer(Optimizer):
 
                 # Run simulation for the new point
                 RunObj = self.simulation.launch(
-                    iteration=i,
-                    directory=self.reference_dir,
-                    parameters=row_dict
+                    iteration=i, directory=self.reference_dir, parameters=row_dict
                 )
 
                 # store the iteration, launch time and parameters for the new run
@@ -312,7 +336,7 @@ class GPOptimizer(Optimizer):
             # loop through all currently running jobs to check if
             # they have finished or timed-out
             current_runs_iterable = [run for run in current_runs]
-            run : SimulationRun
+            run: SimulationRun
             for run in current_runs_iterable:
 
                 run_status = run.status()
@@ -329,13 +353,15 @@ class GPOptimizer(Optimizer):
                     new_row = {
                         "prediction_mean": None,
                         "prediction_error": None,
-                        "prediction_metric": None
+                        "prediction_metric": None,
                     }
                     new_row.update(logprobs)
                     new_row.update(run.parameters)
-                    df = read_hdf(self.trainingfile, 'training')
-                    df.loc[(run.iteration,0),:] = new_row  # add the new row
-                    df.to_hdf(self.trainingfile, key='training', mode='w')  # save the data
+                    df = read_hdf(self.trainingfile, "training")
+                    df.loc[(run.iteration, 0), :] = new_row  # add the new row
+                    df.to_hdf(
+                        self.trainingfile, key="training", mode="w"
+                    )  # save the data
 
                     # now the run results are saved we can stop tracking the run
                     current_runs.remove(run)
@@ -345,16 +371,24 @@ class GPOptimizer(Optimizer):
 
                 elif run_status == "crashed":
                     logging.info("[ crash warning ]")
-                    logging.info(f">> iteration {run.iteration}, job {run.run_id} has crashed")
+                    logging.info(
+                        f">> iteration {run.iteration}, job {run.run_id} has crashed"
+                    )
                     current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                    subprocess.run(
+                        ["rm", "-r", run.directory]
+                    )  # remove its run directory
 
                 elif run_status == "timed-out":
                     logging.info("[ time-out warning ]")
-                    logging.info(f">> iteration {run.iteration}, job {run.run_id} has timed-out")
+                    logging.info(
+                        f">> iteration {run.iteration}, job {run.run_id} has timed-out"
+                    )
                     run.cancel()  # cancel the timed-out job
                     current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", run.directory])  # remove its run directory
+                    subprocess.run(
+                        ["rm", "-r", run.directory]
+                    )  # remove its run directory
 
             # if we're already at maximum concurrent runs, pause for a bit before re-checking
             if len(current_runs) == self.concurrent_runs:
@@ -362,10 +396,12 @@ class GPOptimizer(Optimizer):
 
     def get_next_points(self):
         # load the training data
-        df = read_hdf(self.trainingfile, 'training')
+        df = read_hdf(self.trainingfile, "training")
         # break the loop if we've hit the max number of iterations
         if df.index[-1][0] >= self.max_iterations:
-            logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
+            logging.info(
+                "[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations"
+            )
             return None
 
         # extract the training data
@@ -376,8 +412,12 @@ class GPOptimizer(Optimizer):
         parameters = [array(t) for t in zip(*[df[k] for k in self.free_parameter_keys])]
 
         # convert the data to the normalised coordinates:
-        free_parameter_bounds = [self.optimization_bounds[k] for k in self.free_parameter_keys]
-        normalised_parameters = [self.normalise_parameters(p, free_parameter_bounds) for p in parameters]
+        free_parameter_bounds = [
+            self.optimization_bounds[k] for k in self.free_parameter_keys
+        ]
+        normalised_parameters = [
+            self.normalise_parameters(p, free_parameter_bounds) for p in parameters
+        ]
 
         # build the set of grid-transformed points
         grid_set = {self.grid_transform(p) for p in normalised_parameters}
@@ -391,7 +431,7 @@ class GPOptimizer(Optimizer):
             acquisition=self.acquisition_function,
             cross_validation=self.cross_validation,
             n_procs=self.simulation.n_proc,
-            trust_region_width=self.trust_region_width
+            trust_region_width=self.trust_region_width,
         )
 
         # back-transform to get the new point as model parameters
@@ -428,8 +468,9 @@ class GPOptimizer(Optimizer):
         # logging.info([param_dict[k] for k in self.simulation.diffusivity_profile])
 
         return [param_dict]
-        
-    def __propose_evaluation(self,
+
+    def __propose_evaluation(
+        self,
         log_posterior: ndarray,
         normalised_parameters,
         kernel,
@@ -447,7 +488,7 @@ class GPOptimizer(Optimizer):
             mean=mean_function,
             optimizer="bfgs",
             n_processes=n_procs,
-            n_starts=300
+            n_starts=300,
         )
 
         # If a trust-region approach is being used, limit the search area
@@ -456,9 +497,11 @@ class GPOptimizer(Optimizer):
             trhw = 0.5 * trust_region_width
             max_ind = log_posterior.argmax()
             max_point = normalised_parameters[max_ind]
-            search_bounds = [(max(0., v - trhw), min(1., v + trhw)) for v in max_point]
+            search_bounds = [
+                (max(0.0, v - trhw), min(1.0, v + trhw)) for v in max_point
+            ]
         else:
-            search_bounds = [(0., 1.) for _ in range(normalised_parameters[0].size)]
+            search_bounds = [(0.0, 1.0) for _ in range(normalised_parameters[0].size)]
 
         # build the GP-optimiser
         GPopt = GpOptimiser(
@@ -470,7 +513,7 @@ class GPOptimizer(Optimizer):
             kernel=kernel,
             mean=mean_function,
             acquisition=acquisition,
-            n_processes=n_procs
+            n_processes=n_procs,
         )
 
         # maximise the acquisition both by multi-start bfgs and differential evolution,
@@ -492,41 +535,41 @@ class GPOptimizer(Optimizer):
         metrics = {
             "prediction_mean": mu_lp,
             "prediction_error": sigma_lp,
-            "prediction_metric": convergence
+            "prediction_metric": convergence,
         }
 
         return new_point, metrics
 
+
 class GeneticOptimizer(Optimizer):
 
-    population : list
-    generations : list
-    mutation_rate = 0.1 # 10% mutation rate
+    population: list
+    generations: list
+    mutation_rate = 0.1  # 10% mutation rate
 
-    def __init__(self, 
-        params : dict, 
-        initial_sample_count=20, 
+    def __init__(
+        self,
+        params: dict,
+        initial_sample_count=20,
         max_iterations=200,
         pop_size=8,
-        tolerance=1e-8
+        tolerance=1e-8,
     ):
-        super().__init__( 
-            params, 
-            initial_sample_count=initial_sample_count, 
+        super().__init__(
+            params,
+            initial_sample_count=initial_sample_count,
             max_iterations=max_iterations,
-            concurrent_runs=1
+            concurrent_runs=1,
         )
-        self.pop_size=pop_size
+        self.pop_size = pop_size
         self.current_generation = 0
         self.population = []
         self.generations = []
-        self.opt_cols = [
-            'logprob'
-        ]
-    
-    def breed(self,p1,p2):
+        self.opt_cols = ["logprob"]
+
+    def breed(self, p1, p2):
         return
-    
+
     def initialize(self, sim, objfn, trainingfile):
         """
         Run initial population randomly distributed
@@ -537,7 +580,7 @@ class GeneticOptimizer(Optimizer):
             # select random value in bounds for free params
             for key in self.free_parameter_keys:
                 bnds = self.optimization_bounds[key]
-                individual[key] = (bnds[1]-bnds[0])*self.rng.random()+bnds[0]
+                individual[key] = (bnds[1] - bnds[0]) * self.rng.random() + bnds[0]
             # add the fixed values
             for key in self.fixed_parameter_keys:
                 individual[key] = self.fixed_parameter_values[key]
@@ -545,24 +588,26 @@ class GeneticOptimizer(Optimizer):
         self.generations.append(self.population)
 
         # run the simulations
-        self.run(new_points=self.population,start_iter=True)
+        self.run(new_points=self.population, start_iter=True)
 
         return
-    
+
     def get_next_points(self):
         """
         Get next generation
         """
         # load the training data
-        df = read_hdf(self.trainingfile, 'training')
+        df = read_hdf(self.trainingfile, "training")
         # break the loop if we've hit the max number of iterations
         if df.index[-1][0] >= self.max_iterations:
-            logging.info('[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations')
+            logging.info(
+                "[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations"
+            )
             return None
 
         # extract the training data
         # sort by figure of merit
-        fom = df['logprob'].values[-(self.pop_size):]
+        fom = df["logprob"].values[-(self.pop_size) :]
         lastpop = [self.population[ii] for ii in fom.argsort()]
 
         # take two best and pass them into the next population
@@ -573,7 +618,7 @@ class GeneticOptimizer(Optimizer):
         ntop = int(0.5 * self.pop_size)
         lastpop = lastpop[0:ntop]
 
-        for i in range(self.pop_size-2):
+        for i in range(self.pop_size - 2):
             # choose two random indices
             r1 = int(self.rng.random() * ntop)
             r2 = r1
@@ -581,16 +626,24 @@ class GeneticOptimizer(Optimizer):
                 r2 = int(self.rng.random() * ntop)
             # average the two chosen, occasionally mutate a parameter
             for k in self.free_parameter_keys:
-                self.population[i][k] = 0.5*(lastpop[r1][k] + lastpop[r2][k])
-                if (self.rng.random() < self.mutation_rate):
+                self.population[i][k] = 0.5 * (lastpop[r1][k] + lastpop[r2][k])
+                if self.rng.random() < self.mutation_rate:
                     bnds = self.optimization_bounds[k]
-                    self.population[i][k] = (bnds[1]-bnds[0])*self.rng.random()+bnds[0]
+                    self.population[i][k] = (
+                        bnds[1] - bnds[0]
+                    ) * self.rng.random() + bnds[0]
 
         self.generations.append(self.population)
 
         logging.info("New population:")
-        logging.info([[param_dict[k] for k in self.free_parameter_keys] for param_dict in self.population])
+        logging.info(
+            [
+                [param_dict[k] for k in self.free_parameter_keys]
+                for param_dict in self.population
+            ]
+        )
 
-        return self.generations[-1]   
+        return self.generations[-1]
 
-#class GradientDescent(Optimizer):
+
+# class GradientDescent(Optimizer):
