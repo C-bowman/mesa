@@ -3,32 +3,35 @@ from os.path import isfile
 import logging
 from pandas import DataFrame, MultiIndex
 
+
 class Mesa:
-    settings_filepath : str
+    settings_filepath: str
 
     def __init__(self, filepath=None):
         self.settings = self.parse_inputs(filepath)
-        self.reffile = self.settings['training_data_file']
-        self.simpath = self.settings['ref_directory']
+        self.reffile = self.settings["training_data_file"]
+        self.simpath = self.settings["ref_directory"]
         self.driver = self.settings["driver"]
         self.simulation = self.settings["simulation"]
         self.objective_function = self.settings["objective_function"]
-        self.optdata = {} # will become pandas dataframe of optimization iterations
-    
+        self.optdata = {}  # will become pandas dataframe of optimization iterations
+
     def run(self):
         # start the optimisation loop
-        self.__init_datafile() # initialize data file of parameters
+        self.__init_datafile()  # initialize data file of parameters
         # setup optimization (can include initial runs)
-        self.driver.initialize(self.simulation, self.objective_function, self.simpath+'/'+self.reffile)
+        self.driver.initialize(
+            self.simulation, self.objective_function, self.simpath + "/" + self.reffile
+        )
         # run followup simulations (series of runs for opt/scan)
         self.driver.run()
 
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
         cols = self.driver.get_dataframe_columns()
-        index = MultiIndex.from_tuples([(0,0)], names=["iteration", "sub-iteration"])
+        index = MultiIndex.from_tuples([(0, 0)], names=["iteration", "sub-iteration"])
         df = DataFrame(columns=cols, index=index)
-        df.to_hdf(self.simpath + self.reffile, key='training', mode='w')
+        df.to_hdf(self.simpath + self.reffile, key="training", mode="w")
         del df
 
     def parse_inputs(self, settings_filepath, check_training_data=False):
@@ -60,11 +63,11 @@ class Mesa:
                 """
             )
         input_variables = [
-            'simulation', # simulation object
-            'driver', # optimizers, parameter scan, etc.
-            'objective_function', # objective function to optimize
-            'ref_directory', # directory where simulation data will go
-            'training_data_file' # file for storing scan/opt data
+            "simulation",  # simulation object
+            "driver",  # optimizers, parameter scan, etc.
+            "objective_function",  # objective function to optimize
+            "ref_directory",  # directory where simulation data will go
+            "training_data_file",  # file for storing scan/opt data
         ]
 
         # check that the settings module contains all the required information
@@ -81,12 +84,16 @@ class Mesa:
         return settings
 
     def logger_setup(self, settings_filepath):
-        path = settings_filepath[:-3] if settings_filepath.endswith('.py') else settings_filepath
+        path = (
+            settings_filepath[:-3]
+            if settings_filepath.endswith(".py")
+            else settings_filepath
+        )
         logging.basicConfig(
-            filename=path + '.log',
+            filename=path + ".log",
             level=logging.INFO,
-            format='%(asctime)s %(levelname)-8s %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            format="%(asctime)s %(levelname)-8s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         # Write to the screen as well
         logging.getLogger().addHandler(logging.StreamHandler())
