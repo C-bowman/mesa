@@ -1,12 +1,9 @@
 import logging
-
 from pandas import read_hdf
-
 from mesa.drivers import Optimizer
 
 
 class GeneticOptimizer(Optimizer):
-
     population: list
     generations: list
     mutation_rate = 0.1  # 10% mutation rate
