@@ -37,7 +37,7 @@ simulation = VSim(
 #   driver settings
 # ----------------------------------------------------------------------------
 
-from mesa.drivers import GeneticOptimizer
+from mesa.drivers.genetic import GeneticOptimizer
 
 # parameters to fix or vary. To fix set as a single value. To vary set bounds as a tuple
 params = {
