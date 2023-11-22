@@ -1,9 +1,9 @@
 import logging
 import subprocess
 from time import sleep
-
 from numpy import array, ndarray
 from pandas import read_hdf
+from inference.gp import GpRegressor, GpOptimiser
 
 from mesa.drivers import Optimizer
 from mesa.simulations import SimulationRun
@@ -68,7 +68,6 @@ class GPOptimizer(Optimizer):
         # loop until enough samples have been evaluated
         current_runs = set()
         while len(iteration_queue) > 0 or len(current_runs) > 0:
-
             # if the current number of runs is less than the allowed
             # maximum, then launch another
             if len(current_runs) < self.concurrent_runs and len(iteration_queue) > 0:
@@ -100,7 +99,6 @@ class GPOptimizer(Optimizer):
             current_runs_iterable = [run for run in current_runs]
             run: SimulationRun
             for run in current_runs_iterable:
-
                 run_status = run.status()
                 if run_status == "complete":
                     # read the simulation data
