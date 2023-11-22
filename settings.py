@@ -43,7 +43,7 @@ simulation = SOLPS(
 #   driver settings
 # ----------------------------------------------------------------------------
 
-from mesa.driver import GPOptimizer
+from mesa.drivers import GPOptimizer
 from inference.gp import SquaredExponential, QuadraticMean, UpperConfidenceBound
 
 # parameters to fix or vary. To fix set as a single value. To vary set bounds as a tuple
