@@ -1,15 +1,18 @@
-from numpy import array, piecewise, concatenate, sort
+from collections.abc import Sequence
+from numpy import array, ndarray, piecewise, concatenate, sort
 
 
-def middle_section(x, h):
+def middle_section(x: ndarray, h: float) -> float:
     return h
 
 
-def linear_section(x, m, c):
+def linear_section(x: ndarray, m: float, c: float) -> ndarray:
     return m * x + c
 
 
-def linear_profile_knots(params, boundaries):
+def linear_profile_knots(
+        params: Sequence[float], boundaries: tuple[float, float]
+) -> tuple[ndarray, ndarray]:
     knot_locations = array(
         [
             boundaries[0],  # left edge
@@ -35,7 +38,9 @@ def linear_profile_knots(params, boundaries):
     return knot_locations[sorter], knot_values[sorter]
 
 
-def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
+def linear_transport_profile(
+        x: ndarray, params: Sequence[float], boundaries=(-0.1, 0.1)
+) -> ndarray:
     M_height = params[5]  # height of the middle section
     L_asymp = params[0] + M_height  # left boundary height
     R_asymp = params[1] + M_height  # right asymptote height
@@ -69,17 +74,19 @@ def linear_transport_profile(x, params, boundaries=(-0.1, 0.1)):
 
     # build functions for each section
     functions = [
-        lambda x: linear_section(x, L_m, L_c),
-        lambda x: linear_section(x, ML_m, ML_c),
-        lambda x: middle_section(x, M_height),
-        lambda x: linear_section(x, MR_m, MR_c),
-        lambda x: linear_section(x, R_m, R_c),
+        lambda z: linear_section(z, L_m, L_c),
+        lambda z: linear_section(z, ML_m, ML_c),
+        lambda z: middle_section(z, M_height),
+        lambda z: linear_section(z, MR_m, MR_c),
+        lambda z: linear_section(z, R_m, R_c),
     ]
 
     return piecewise(x, conditions, functions)
 
 
-def profile_radius_axis(params, boundaries):
+def profile_radius_axis(
+        params: Sequence[float], boundaries: tuple[float, float]
+) -> ndarray:
     r, _ = linear_profile_knots(params, boundaries)
     # find the spacing that we'll use to place points around each knot
     dr = [r[1] - r[0]]
