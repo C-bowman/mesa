@@ -1,10 +1,11 @@
 import logging
 import os
 import subprocess
+from collections.abc import Sequence
 from abc import ABC, abstractmethod
 from time import sleep
 
-from numpy import array
+from numpy import array, ndarray
 from numpy.random import default_rng
 from pandas import read_hdf
 
@@ -21,7 +22,7 @@ class Driver(ABC):
 
     simulation: Simulation
     objective_function: WeightedObjectiveFunction
-    concurrent_runs: int
+    max_concurrent_runs: int
     initial_sample_count: int
     max_iterations: int
     training_file: str
@@ -36,26 +37,35 @@ class Driver(ABC):
     fixed_parameter_keys = []
     opt_cols = []
 
-    def __init__(self, params, initial_sample_count, concurrent_runs, max_iterations):
+    def __init__(
+        self,
+        params,
+        initial_sample_count: int,
+        max_concurrent_runs: int,
+        max_iterations: int,
+    ):
         self.parameters = params
         self.initial_sample_count = initial_sample_count
-        self.concurrent_runs = concurrent_runs
+        self.max_concurrent_runs = max_concurrent_runs
         self.max_iterations = max_iterations
         self.__parse_params()
         self.rng = default_rng()
         self.converged = False
 
     def initialize(
-        self, sim: Simulation, objfn: WeightedObjectiveFunction, training_file: str
+        self,
+        simulation: Simulation,
+        objective_func: WeightedObjectiveFunction,
+        training_file: str,
     ):
-        self.simulation = sim
-        self.objective_function = objfn
+        self.simulation = simulation
+        self.objective_function = objective_func
         self.reference_dir = os.path.dirname(os.path.abspath(training_file))
         self.training_file = training_file.split("/")[-1]
         os.chdir(self.reference_dir)
 
     @abstractmethod
-    def get_next_points(self):
+    def get_next_points(self) -> list[dict]:
         pass
 
     def check_error_model(self, error_model):
@@ -70,105 +80,116 @@ class Driver(ABC):
                 """
             )
 
-    def run(self, new_points=None, start_iter=False):
+    def run(self, new_points: list[dict] = None, start_iter=False):
         df = read_hdf(self.training_file, "training")
         self.fname = self.training_file.split("/")[-1]  # get just name
-        while not self.converged:
-            current_runs = set()
-            # get the current iteration number
-            if start_iter:
-                itr = 0
-            else:
-                itr = df.index[-1][0] + 1
 
-            if itr > self.max_iterations:
+        while not self.converged:
+            # get the current iteration number
+            iteration = 0 if start_iter else df.index[-1][0] + 1
+
+            if iteration > self.max_iterations:
                 logging.info("maximum iterations reached without convergence")
                 break
-            logging.info(f"--- Starting iteration {itr} ---")
+            logging.info(f"--- Starting iteration {iteration} ---")
 
             # get next set of points for this iteration
             if new_points == None:
                 new_points = self.get_next_points()
 
-            # Run simulation for the new point
-            for counter, point in enumerate(new_points):
-                logging.info(f"Sub-iteration {counter} - New parameters:")
-                logging.info([point[k] for k in self.free_parameter_keys])
-                thisrun = self.simulation.launch(
-                    iteration=str(itr) + "_" + str(counter),
-                    directory=self.reference_dir,
-                    parameters=point,
-                )
-                # store the iteration, launch time and parameters for the new run
-                current_runs.add(thisrun)
+            self.launch_iteration(iteration=iteration, pending_points=new_points)
 
-                # check statuses if we have hit the max concurrent runs or if we are on
-                # the last of this set of points
-                if (
-                    len(current_runs) >= self.concurrent_runs
-                    or counter == len(new_points) - 1
-                ):
-                    while len(current_runs) > 0 or len(current_runs) > 0:
-                        # loop through all currently running jobs to check if
-                        #  they have finished or timed-out
-                        current_runs_iterable = [run for run in current_runs]
-                        run: SimulationRun
-                        for run in current_runs_iterable:
+    def launch_iteration(self, iteration: int, pending_points: list[dict]):
+        """
+        Launches and manages all the simulations runs required to complete
+        the current iteration.
+        """
+        current_runs: set[SimulationRun] = set()
+        pending_run_numbers = {i for i in range(len(pending_points))}
+        total_requested_runs = len(pending_run_numbers)
+        completed_runs = set()
 
-                            run_status = run.status()
-                            if run_status == "complete":
-                                # read the simulation data
-                                sim_data = self.simulation.get_data(run.directory)
+        # main monitoring loop for the simulation runs
+        while len(completed_runs) < total_requested_runs:
+            # if we are not at the maximum allowed number of concurrent runs
+            # then launch enough to bring us to the maximum
+            available_runs = min(
+                self.max_concurrent_runs - len(current_runs), len(pending_run_numbers)
+            )
+            if available_runs:
+                runs_to_launch = [
+                    pending_run_numbers.pop() for _ in range(available_runs)
+                ]
 
-                                # get the objective function value
-                                logprobs = self.objective_function.evaluate(
-                                    simulation_interface=sim_data
-                                )
+                for run_number in runs_to_launch:
+                    point = pending_points[run_number]
+                    logging.info(f"Run number {run_number} - New parameters:")
+                    logging.info([point[k] for k in self.free_parameter_keys])
 
-                                # build a new row for the dataframe
-                                new_row = {}
-                                new_row.update(logprobs)
-                                new_row.update(run.parameters)
-                                df = read_hdf(self.fname, "training")
-                                df.loc[(itr, counter), :] = new_row  # add the new row
-                                df.to_hdf(
-                                    self.fname, key="training", mode="w"
-                                )  # save the data
+                    current_runs.add(
+                        self.simulation.launch(
+                            iteration=(iteration, run_number),
+                            directory=self.reference_dir,
+                            parameters=point,
+                        )
+                    )
 
-                                # now the run results are saved we can stop tracking the run
-                                current_runs.remove(run)
+            # we can't modify the current_runs set while we're iterating over it,
+            # so make a copy which we can iterate over
+            current_runs_iterable = [run for run in current_runs]
+            # loop through all currently running jobs to check if
+            # they have finished or timed-out
+            run: SimulationRun
+            for run in current_runs_iterable:
 
-                                # clean up the run directory
-                                run.cleanup()
+                run_status = run.status()
+                if run_status == "complete":
+                    # read the simulation data
+                    sim_data = self.simulation.get_data(run.directory)
 
-                            elif run_status == "crashed":
-                                logging.info("[ crash warning ]")
-                                logging.info(
-                                    f">> iteration {run.iteration}, job {run.run_id} has crashed"
-                                )
-                                current_runs.remove(run)  # remove it from the current runs
-                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
+                    # get the objective function value
+                    objective_values = self.objective_function.evaluate(
+                        simulation_interface=sim_data
+                    )
 
-                            elif run_status == "timed-out":
-                                logging.info("[ time-out warning ]")
-                                logging.info(
-                                    f">> iteration {run.iteration}, job {run.run_id} has timed-out"
-                                )
-                                run.cancel()  # cancel the timed-out job
-                                current_runs.remove(run)  # remove it from the current runs
-                                subprocess.run(["rm", "-r", run.directory])  # remove its run directory
-                                current_runs_iterable.append(run.iteration)  # add the iteration number back to the queue
+                    # build a new row for the dataframe
+                    new_row = {}
+                    new_row.update(objective_values)
+                    new_row.update(run.parameters)
+                    df = read_hdf(self.fname, "training")
+                    df.loc[run.iteration, :] = new_row  # add the new row
+                    df.to_hdf(self.fname, key="training", mode="w")  # save the data
 
-                        # if we're already at maximum concurrent runs, pause for a bit before re-checking
-                        if len(current_runs) == self.concurrent_runs:
-                            sleep(30)
+                    # now the run results are saved we can stop tracking the run
+                    current_runs.remove(run)
+                    completed_runs.add(run)
+                    # clean up the run directory
+                    run.cleanup()
 
-            # reset points so another set will be asked for next iteration
-            new_points = None
-            # if this is the starting iteration called from init, only do one loop iteration
-            if start_iter:
-                break
+                elif run_status == "crashed":
+                    logging.info("[ crash warning ]")
+                    logging.info(
+                        f">> iteration {run.iteration}, job {run.run_id} has crashed"
+                    )
+                    current_runs.remove(run)  # remove it from the current runs
+                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
+                    # currently no provision for re-starting runs, so mark it complete
+                    completed_runs.add(run)
+
+                elif run_status == "timed-out":
+                    logging.info("[ time-out warning ]")
+                    logging.info(
+                        f">> iteration {run.iteration}, job {run.run_id} has timed-out"
+                    )
+                    run.cancel()  # cancel the timed-out job
+                    current_runs.remove(run)  # remove it from the current runs
+                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
+                    # currently no provision for re-starting runs, so mark it complete
+                    completed_runs.add(run)
+
+            # if we're still at the maximum concurrent runs, pause for a bit before re-checking
+            if len(current_runs) == self.max_concurrent_runs:
+                sleep(30)
 
     def get_dataframe_columns(self):
         """
@@ -184,10 +205,16 @@ class Driver(ABC):
     def __get_opt_columns(self):
         return []
 
-    def normalise_parameters(self, v, bounds):
+    @staticmethod
+    def normalise_parameters(
+        v: ndarray, bounds: Sequence[tuple[float, float]]
+    ) -> ndarray:
         return array([(k - b[0]) / (b[1] - b[0]) for k, b in zip(v, bounds)])
 
-    def reverse_normalisation(self, v, bounds):
+    @staticmethod
+    def reverse_normalisation(
+        v: ndarray, bounds: Sequence[tuple[float, float]]
+    ) -> ndarray:
         return array([b[0] + (b[1] - b[0]) * k for k, b in zip(v, bounds)])
 
     def grid_transform(self, point):
