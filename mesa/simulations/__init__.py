@@ -2,6 +2,10 @@ from dataclasses import dataclass
 import subprocess
 from os.path import isfile
 from abc import ABC, abstractmethod
+from typing import Literal
+
+
+RunStatus = Literal["running", "complete", "timed-out", "crashed"]
 
 
 @dataclass(frozen=True)
@@ -14,13 +18,9 @@ class SimulationRun(ABC):
     timeout_hours: float
     job_queue = None
 
-    def status(self):
-        whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
-        username = whoami.stdout.rstrip()
-        squeue = subprocess.run(
-            ["squeue", "-u", username], capture_output=True, encoding="utf-8"
-        )
-        self.job_queue = squeue.stdout
+    @abstractmethod
+    def status(self) -> RunStatus:
+        pass
 
     @abstractmethod
     def cleanup(self):
