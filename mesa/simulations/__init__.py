@@ -47,7 +47,6 @@ class Simulation(ABC):
         self.exe = exe
         self.n_proc = n_proc
         self.timeout_hours = timeout_hours
-        self.output_filename
 
     @abstractmethod
     def launch(self, iteration=None, directory=None, parameters=None) -> SimulationRun:
@@ -57,13 +56,19 @@ class Simulation(ABC):
     def get_data(self, path=None):
         pass
 
-    def create_case_directory(self, iteration, ref_directory, inputfiles):
-        self.casedir = ref_directory + f"/iteration_{iteration}/"
+    def create_case_directory(
+        self,
+        iteration,
+        ref_directory: str,
+        input_files: list[str],
+        filename_map: dict[str, str] = None
+    ):
+        self.case_dir = f"{ref_directory}/iteration_{iteration}/"
         self.reference_dir = ref_directory
-
+        filename_map = {} if filename_map is None else filename_map
         # create the case directory and copy all the reference files
-        subprocess.run(["mkdir", self.casedir])
-        subprocess.run(["cp", ref_directory + "b2fstate", self.casedir + "b2fstati"])
-        for input in inputfiles:
-            if isfile(ref_directory + input):
-                subprocess.run(["cp", ref_directory + input, self.casedir + input])
+        subprocess.run(["mkdir", self.case_dir])
+        for file_name in input_files:
+            if isfile(ref_directory + file_name):
+                case_name = filename_map.get(file_name, file_name)
+                subprocess.run(["cp", ref_directory + file_name, self.case_dir + case_name])
