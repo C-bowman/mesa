@@ -4,7 +4,7 @@ import os
 from os.path import isfile
 from time import time
 from dataclasses import dataclass
-from mesa.simulations import Simulation, SimulationRun
+from mesa.simulations import Simulation, SimulationRun, RunStatus
 
 
 class VSimInterface:
@@ -24,7 +24,7 @@ class VSimInterface:
 class VSimRun(SimulationRun):
     slurm: bool
 
-    def status(self):
+    def status(self) -> RunStatus:
         if self.slurm:
             super().status()
             if self.slurm and (self.run_id not in self.job_queue):

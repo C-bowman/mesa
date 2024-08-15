@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from numpy import sum
 
+from mesa.simulations import RunStatus
 from mesa.simulations.solps.models import linear_transport_profile, profile_radius_axis
 from mesa.simulations.solps.parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
@@ -21,7 +22,7 @@ class SolpsRun:
     launch_time: float
     timeout_hours: float
 
-    def status(self):
+    def status(self) -> RunStatus:
         whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
         username = whoami.stdout.rstrip()
 
