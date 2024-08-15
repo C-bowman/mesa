@@ -30,7 +30,7 @@ class SimulationRun(ABC):
         subprocess.run(["scancel", self.run_id])
 
     def __key(self):
-        return self.run_id, self.directory, self.iteration, self.launch_time
+        return self.run_id, self.directory, self.run_number, self.launch_time
 
     def __hash__(self):
         return hash(self.__key())
