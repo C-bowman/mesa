@@ -1,7 +1,9 @@
 from runpy import run_path
 from os.path import isfile
 import logging
-from pandas import DataFrame, MultiIndex
+from pandas import DataFrame
+from mesa.simulations import Simulation
+from mesa.drivers import Driver
 
 
 class Mesa:
@@ -9,10 +11,10 @@ class Mesa:
 
     def __init__(self, filepath=None):
         self.settings = self.parse_inputs(filepath)
-        self.reffile = self.settings["training_data_file"]
-        self.simpath = self.settings["ref_directory"]
-        self.driver = self.settings["driver"]
-        self.simulation = self.settings["simulation"]
+        self.training_data_file = self.settings["training_data_file"]
+        self.reference_directory = self.settings["ref_directory"]
+        self.driver: Driver = self.settings["driver"]
+        self.simulation: Simulation = self.settings["simulation"]
         self.objective_function = self.settings["objective_function"]
         self.optdata = {}  # will become pandas dataframe of optimization iterations
 
@@ -21,7 +23,9 @@ class Mesa:
         self.__init_datafile()  # initialize data file of parameters
         # setup optimization (can include initial runs)
         self.driver.initialize(
-            self.simulation, self.objective_function, self.simpath + "/" + self.reffile
+            simulation=self.simulation,
+            objective_func=self.objective_function,
+            training_file=self.reference_directory + "/" + self.training_data_file
         )
         # run followup simulations (series of runs for opt/scan)
         self.driver.run()
@@ -29,9 +33,8 @@ class Mesa:
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
         cols = self.driver.get_dataframe_columns()
-        index = MultiIndex.from_tuples([(0, 0)], names=["iteration", "sub-iteration"])
-        df = DataFrame(columns=cols, index=index)
-        df.to_hdf(self.simpath + self.reffile, key="training", mode="w")
+        df = DataFrame(columns=cols)
+        df.to_hdf(self.reference_directory + self.training_data_file, key="training", mode="w")
         del df
 
     def parse_inputs(self, settings_filepath, check_training_data=False):
