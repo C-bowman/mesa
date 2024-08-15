@@ -1,5 +1,6 @@
 import logging
 import os
+
 import subprocess
 from collections.abc import Sequence
 from abc import ABC, abstractmethod
@@ -13,9 +14,9 @@ from mesa.diagnostics import WeightedObjectiveFunction
 from mesa.simulations import Simulation, SimulationRun
 
 
-class Driver(ABC):
+class Strategy(ABC):
     """
-    Base class for all drivers, holds list of parameters and their
+    Base class for all strategies, holds list of parameters and their
     limits in a single dictionary. Also holds the simulation
     object that it will launch with parameter values
     """
@@ -262,7 +263,7 @@ class Driver(ABC):
         self.num_free_parameters = len(self.free_parameter_keys)
 
 
-class Optimizer(Driver):
+class Optimizer(Strategy):
     def __init__(
         self, params, initial_sample_count=0, max_iterations=200, concurrent_runs=1
     ):
