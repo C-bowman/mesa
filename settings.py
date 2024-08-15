@@ -30,8 +30,8 @@ objective_function = WeightedObjectiveFunction(dgns,wgts)
 # ----------------------------------------------------------------------------
 #   simulation settings
 # ----------------------------------------------------------------------------
-from mesa.simulations import SOLPS
-simulation = SOLPS(
+from mesa.simulations.solps import Solps
+simulation = Solps(
     exe='/pfs/work/g2hjame/solps-iter/software/solps',
     n_proc=6,
     timeout_hours=24,
@@ -43,7 +43,7 @@ simulation = SOLPS(
 #   driver settings
 # ----------------------------------------------------------------------------
 
-from mesa.drivers import GPOptimizer
+from mesa.strategies import GPOptimizer
 from inference.gp import SquaredExponential, QuadraticMean, UpperConfidenceBound
 
 # parameters to fix or vary. To fix set as a single value. To vary set bounds as a tuple
@@ -83,15 +83,15 @@ gpo_options = {
     'trust_region_width' : 0.3
 }
 
-driver = GPOptimizer(
+strategy = GPOptimizer(
     params,
-    initial_sample_count = 0,
-    max_iterations = 200,
+    initial_sample_count=0,
+    max_iterations=200,
     concurrent_runs=10,
-    covariance_kernel = SquaredExponential,
-    mean_function = QuadraticMean,
-    acquisition_function = UpperConfidenceBound(kappa=1.),
-    cross_validation = False,
-    error_model = 'cauchy',
-    trust_region_width = 0.3
+    covariance_kernel=SquaredExponential,
+    mean_function=QuadraticMean,
+    acquisition_function=UpperConfidenceBound(kappa=1.),
+    cross_validation=False,
+    error_model='cauchy',
+    trust_region_width=0.3
 )

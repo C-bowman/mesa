@@ -5,7 +5,7 @@ from numpy import array, ndarray
 from pandas import read_hdf
 from inference.gp import GpRegressor, GpOptimiser
 
-from mesa.drivers import Optimizer
+from mesa.strategies import Optimizer
 from mesa.simulations import SimulationRun
 
 

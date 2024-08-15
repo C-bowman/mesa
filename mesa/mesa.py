@@ -3,7 +3,7 @@ from os.path import isfile
 import logging
 from pandas import DataFrame
 from mesa.simulations import Simulation
-from mesa.drivers import Driver
+from mesa.strategies import Strategy
 
 
 class Mesa:
@@ -13,7 +13,7 @@ class Mesa:
         self.settings = self.parse_inputs(filepath)
         self.training_data_file = self.settings["training_data_file"]
         self.reference_directory = self.settings["ref_directory"]
-        self.driver: Driver = self.settings["driver"]
+        self.strategy: Strategy = self.settings["strategy"]
         self.simulation: Simulation = self.settings["simulation"]
         self.objective_function = self.settings["objective_function"]
         self.optdata = {}  # will become pandas dataframe of optimization iterations
@@ -22,17 +22,17 @@ class Mesa:
         # start the optimisation loop
         self.__init_datafile()  # initialize data file of parameters
         # setup optimization (can include initial runs)
-        self.driver.initialize(
+        self.strategy.initialize(
             simulation=self.simulation,
             objective_func=self.objective_function,
             training_file=self.reference_directory + "/" + self.training_data_file
         )
         # run followup simulations (series of runs for opt/scan)
-        self.driver.run()
+        self.strategy.run()
 
     def __init_datafile(self):
         # create the empty dataframe to store the training data and save it to HDF
-        cols = self.driver.get_dataframe_columns()
+        cols = self.strategy.get_dataframe_columns()
         df = DataFrame(columns=cols)
         df.to_hdf(self.reference_directory + self.training_data_file, key="training", mode="w")
         del df

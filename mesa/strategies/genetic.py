@@ -1,6 +1,6 @@
 import logging
 from pandas import read_hdf
-from mesa.drivers import Optimizer
+from mesa.strategies import Optimizer
 
 
 class GeneticOptimizer(Optimizer):
