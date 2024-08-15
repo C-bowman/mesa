@@ -8,15 +8,14 @@ from mesa.simulations import Simulation, SimulationRun, RunStatus
 
 
 class VSimInterface:
-    path: str
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         self.path = path
 
-    def getE(self, dataslice):
+    def get_E(self, dataslice):
         return 0.0
 
-    def getTime(self):
+    def get_time(self):
         return 0.0
 
 
@@ -44,17 +43,9 @@ class VSimRun(SimulationRun):
             f for f in os.listdir(self.directory) if isfile(self.directory + f)
         ]
         return
-        # allowed_files = (
-        #     "balance.nc", "input.dat", "b2.neutrals.parameters",
-        #     "b2.boundary.parameters", "b2.numerics.parameters",
-        #     "b2.transport.parameters", "b2.transport.inputfile",
-        #     "b2mn.dat"
-        # )
-        # deletions = [f for f in output_files if f not in allowed_files]
-        # [os.remove(self.directory + f) for f in deletions]
 
     def __key(self):
-        return self.run_id, self.directory, self.iteration, self.launch_time
+        return self.run_id, self.directory, self.run_number, self.launch_time
 
     def __hash__(self):
         return hash(self.__key())
@@ -82,31 +73,33 @@ class VSim(Simulation):
                 return
                 # change desired param values, throw error of one cannot be found
 
-    def launch(self, iteration=None, directory=None, parameters=None) -> VSimRun:
+    def launch(self, run_number: int, directory: str, parameters: dict) -> VSimRun:
         """
         Evaluates VSim for the provided parameter values
 
-        :param int iteration: \
-        The iteration number corresponding to the requested solps-run, used to name
-        directory in which the solps output is stored.
+        :param int run_number: \
+            The run number corresponding of the requested simulation run, used to name
+            directory in which the simulation output is stored.
 
-        :param str reference_directory: \
+        :param str directory: \
+            The directory inside which a new directory for the run will be created.
 
-        :param list parameters:
-        The list of parameters to set in the input file \
+        :param parameters: \
+            The list of parameters to set in the input file.
 
         """
         filename = self.base_input_file.split(".")[0]
         input_files = [filename + ".pre", filename + ".in"]
 
-        self.create_case_directory(iteration, directory, input_files)
+        self.create_case_directory(
+            run_number=run_number, ref_directory=directory, input_files=input_files
+        )
 
-        for infile in input_files:
-            infile = self.casedir + infile
-        self.write_vsim_inputfiles(input_files)
+        input_paths = [self.case_dir + f for f in input_files]
+        self.write_vsim_inputfiles(input_paths)
 
-        # Go to the SOLPS run directory to prepare execution
-        os.chdir(self.casedir)
+        # Go to the run directory to prepare execution
+        os.chdir(self.case_dir)
 
         if self.n_proc == 1:
             command = "source " + self.exe + " ; vorpalser -i " + input_files[0]
@@ -132,27 +125,20 @@ class VSim(Simulation):
             logging.info(f"[vsim_interface] Submitted job {job_id}")
         else:
             job_id = 0
-            logging.info(f"[vsim_interface] Running job {iteration}")
+            logging.info(f"[vsim_interface] Running job {run_number}")
 
         return VSimRun(
             run_id=job_id,
-            directory=self.casedir,
-            iteration=iteration,
+            directory=self.case_dir,
+            run_number=run_number,
             parameters=parameters,
             launch_time=time(),
             timeout_hours=self.timeout_hours,
             slurm=self.slurm,
         )
 
-    def get_data(self, path=None):
+    def get_data(self, path: str):
         """
         Returns interface to run data at provided path
         """
-        if path == None:
-            raise ValueError(
-                f"""
-                [ MESA ERROR ]
-                >> Path not provided for simulation data in VSim get_data()
-                """
-            )
         return VSimInterface(path)
