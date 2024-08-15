@@ -50,7 +50,12 @@ class Simulation(ABC):
 
     @abstractmethod
     def launch(
-        self, run_number: int, directory: str, parameters: dict
+        self,
+        run_number: int,
+        reference_directory: str,
+        parameters: dict,
+        *args,
+        **kwargs,
     ) -> SimulationRun:
         pass
 
