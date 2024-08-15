@@ -6,7 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from numpy import sum
 
-from mesa.simulations import RunStatus
+from mesa.simulations import RunStatus, SimulationRun
 from mesa.simulations.solps.models import linear_transport_profile, profile_radius_axis
 from mesa.simulations.solps.parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
@@ -14,19 +14,15 @@ from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_lik
 
 
 @dataclass(frozen=True)
-class SolpsRun:
-    run_id: str
-    directory: str
-    parameters: dict
-    iteration: int
-    launch_time: float
-    timeout_hours: float
+class SolpsRun(SimulationRun):
 
     def status(self) -> RunStatus:
         whoami = subprocess.run("whoami", capture_output=True, encoding="utf-8")
         username = whoami.stdout.rstrip()
 
-        squeue = subprocess.run(["squeue", "-u", username], capture_output=True, encoding="utf-8")
+        squeue = subprocess.run(
+            ["squeue", "-u", username], capture_output=True, encoding="utf-8"
+        )
         job_queue = squeue.stdout
 
         if self.run_id not in job_queue:
@@ -53,7 +49,7 @@ class SolpsRun:
         subprocess.run(["scancel", self.run_id])
 
     def __key(self):
-        return self.run_id, self.directory, self.iteration, self.launch_time
+        return self.run_id, self.directory, self.run_number, self.launch_time
 
     def __hash__(self):
         return hash(self.__key())
@@ -133,9 +129,9 @@ def write_solps_transport_inputfile(
 
 
 def build_solps_case(
-        reference_directory,
-        case_directory,
-        parameter_dictionary
+    reference_directory: str,
+    case_directory: str,
+    parameter_dictionary: dict
 ):
     input_files = [
         "input.dat",
@@ -198,14 +194,11 @@ def build_solps_case(
             )
 
 
-
-
-
 def launch_solps(
-    iteration,
-    reference_directory,
-    parameter_dictionary,
-    transport_profile_bounds,
+    run_number: int,
+    reference_directory: str,
+    parameter_dictionary: dict,
+    transport_profile_bounds: tuple[float, float],
     set_div_transport=False,
     n_proc=1,
     timeout_hours=24
@@ -213,14 +206,14 @@ def launch_solps(
     """
     Evaluates SOLPS for the provided transport profiles and saves the results.
 
-    :param int iteration: \
-        The iteration number corresponding to the requested solps-run, used to name
-        directory in which the solps output is stored.
+    :param int run_number: \
+        The run number corresponding to the requested SOLPS run, used to name
+        directory in which the SOLPS output is stored.
 
     :param str reference_directory: \
 
     """
-    case_dir = reference_directory + f"iteration_{iteration}/"
+    case_dir = reference_directory + f"run_{run_number}/"
 
     build_solps_case(
         reference_directory=reference_directory,
@@ -270,7 +263,7 @@ def launch_solps(
     return SolpsRun(
         run_id=job_id,
         directory=case_dir,
-        iteration=iteration,
+        run_number=run_number,
         parameters=parameter_dictionary,
         launch_time=time(),
         timeout_hours=timeout_hours
