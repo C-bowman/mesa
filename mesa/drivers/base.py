@@ -82,11 +82,11 @@ class Driver(ABC):
 
     def run(self, new_points: list[dict] = None, start_iter=False):
         df = read_hdf(self.training_file, "training")
-        self.fname = self.training_file.split("/")[-1]  # get just name
 
         while not self.converged:
             # get the current iteration number
-            iteration = 0 if start_iter else df.index[-1][0] + 1
+            initial_run_number = 0 if start_iter else df["run_number"].max() + 1
+            iteration = 0 if start_iter else df["iteration"].max() + 1
 
             if iteration > self.max_iterations:
                 logging.info("maximum iterations reached without convergence")
@@ -97,17 +97,25 @@ class Driver(ABC):
             if new_points == None:
                 new_points = self.get_next_points()
 
-            self.launch_iteration(iteration=iteration, pending_points=new_points)
+            self.launch_iteration(
+                iteration=iteration,
+                initial_run_number=initial_run_number,
+                pending_points=new_points,
+            )
 
-    def launch_iteration(self, iteration: int, pending_points: list[dict]):
+    def launch_iteration(
+        self, iteration: int, initial_run_number: int, pending_points: list[dict]
+    ):
         """
         Launches and manages all the simulations runs required to complete
         the current iteration.
         """
         current_runs: set[SimulationRun] = set()
-        pending_run_numbers = {i for i in range(len(pending_points))}
-        total_requested_runs = len(pending_run_numbers)
-        completed_runs = set()
+        completed_runs: set[SimulationRun] = set()
+        total_requested_runs = len(pending_points)
+        pending_run_numbers = set(
+            range(initial_run_number, initial_run_number + total_requested_runs)
+        )
 
         # main monitoring loop for the simulation runs
         while len(completed_runs) < total_requested_runs:
@@ -128,7 +136,7 @@ class Driver(ABC):
 
                     current_runs.add(
                         self.simulation.launch(
-                            iteration=(iteration, run_number),
+                            run_number=run_number,
                             directory=self.reference_dir,
                             parameters=point,
                         )
@@ -141,7 +149,6 @@ class Driver(ABC):
             # they have finished or timed-out
             run: SimulationRun
             for run in current_runs_iterable:
-
                 run_status = run.status()
                 if run_status == "complete":
                     # read the simulation data
@@ -153,12 +160,12 @@ class Driver(ABC):
                     )
 
                     # build a new row for the dataframe
-                    new_row = {}
+                    new_row = {"iteration": iteration, "run_number": run.run_number}
                     new_row.update(objective_values)
                     new_row.update(run.parameters)
-                    df = read_hdf(self.fname, "training")
-                    df.loc[run.iteration, :] = new_row  # add the new row
-                    df.to_hdf(self.fname, key="training", mode="w")  # save the data
+                    df = read_hdf(self.training_file, "training")
+                    df.loc[run.run_number, :] = new_row  # add the new row
+                    df.to_hdf(self.training_file, key="training", mode="w")  # save the data
 
                     # now the run results are saved we can stop tracking the run
                     current_runs.remove(run)
@@ -169,7 +176,7 @@ class Driver(ABC):
                 elif run_status == "crashed":
                     logging.info("[ crash warning ]")
                     logging.info(
-                        f">> iteration {run.iteration}, job {run.run_id} has crashed"
+                        f">> run #{run.run_number}, job {run.run_id} has crashed"
                     )
                     current_runs.remove(run)  # remove it from the current runs
                     subprocess.run(["rm", "-r", run.directory])  # remove run directory
@@ -179,7 +186,7 @@ class Driver(ABC):
                 elif run_status == "timed-out":
                     logging.info("[ time-out warning ]")
                     logging.info(
-                        f">> iteration {run.iteration}, job {run.run_id} has timed-out"
+                        f">> iteration {run.run_number}, job {run.run_id} has timed-out"
                     )
                     run.cancel()  # cancel the timed-out job
                     current_runs.remove(run)  # remove it from the current runs
