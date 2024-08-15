@@ -6,9 +6,10 @@ import subprocess
 from dataclasses import dataclass
 from numpy import sum
 
-from mesa.simulations import RunStatus, SimulationRun
-from mesa.simulations.solps.models import linear_transport_profile, profile_radius_axis
-from mesa.simulations.solps.parameters import conductivity_profile, diffusivity_profile, required_parameters
+from mesa.simulations import RunStatus, Simulation, SimulationRun
+from .transport import write_solps_transport_inputfile
+from .models import linear_transport_profile, profile_radius_axis
+from .parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
@@ -53,6 +54,84 @@ class SolpsRun(SimulationRun):
 
     def __hash__(self):
         return hash(self.__key())
+
+
+class Solps(Simulation):
+    def launch(
+        self,
+        run_number: int,
+        reference_directory: str,
+        parameters: dict,
+        transport_profile_bounds: tuple[float, float],
+        set_div_transport=False,
+        n_proc=1,
+        timeout_hours=24
+    ) -> SolpsRun:
+        """
+        Evaluates SOLPS for the provided transport profiles and saves the results.
+
+        :param int run_number: \
+            The run number corresponding to the requested SOLPS run, used to name
+            directory in which the SOLPS output is stored.
+
+        :param str reference_directory: \
+
+        """
+        case_dir = reference_directory + f"run_{run_number}/"
+
+        build_solps_case(
+            reference_directory=reference_directory,
+            case_directory=case_dir,
+            parameter_dictionary=parameters
+        )
+
+        # produce transport profiles defined by new point
+        chi_params = [parameters[k] for k in conductivity_profile]
+        chi_radius = profile_radius_axis(chi_params, transport_profile_bounds)
+        chi = linear_transport_profile(chi_radius, chi_params, transport_profile_bounds)
+
+        D_params = [parameters[k] for k in diffusivity_profile]
+        D_radius = profile_radius_axis(D_params, transport_profile_bounds)
+        D = linear_transport_profile(D_radius, D_params, transport_profile_bounds)
+
+        write_solps_transport_inputfile(
+            filename=case_dir + 'b2.transport.inputfile',
+            grid_dperp=D_radius,
+            values_dperp=D,
+            grid_chieperp=chi_radius,
+            values_chieperp=chi,
+            grid_chiiperp=chi_radius,
+            values_chiiperp=chi,
+            set_ana_visc_dperp=False,  # TODO - may need to be chosen via settings file
+            no_pflux=True,
+            no_div=set_div_transport
+        )
+
+        # Go to the SOLPS run directory to prepare execution
+        os.chdir(case_dir)
+
+        findstr = 'Submitted batch job'
+
+        if n_proc == 1:
+            start_run = subprocess.Popen("itmsubmit", stdout=subprocess.PIPE, shell=True)
+        if n_proc > 1:
+            start_run = subprocess.Popen(f'itmsubmit -m "-np {n_proc}"', stdout=subprocess.PIPE, shell=True)
+
+        start_run_output = start_run.communicate()[0]
+        os.chdir(reference_directory)
+        # Find the batch job number
+        tmp = str(start_run_output).find(findstr)
+        job_id = str(start_run_output)[tmp + len(findstr) + 1:-3]
+
+        logging.info(f'[solps_interface] Submitted job {job_id}')
+        return SolpsRun(
+            run_id=job_id,
+            directory=case_dir,
+            run_number=run_number,
+            parameters=parameters,
+            launch_time=time(),
+            timeout_hours=timeout_hours
+        )
 
 
 def build_solps_case(
@@ -119,82 +198,6 @@ def build_solps_case(
                 >> but were not found in any input files with a .mesa extension.
                 """
             )
-
-
-def launch_solps(
-    run_number: int,
-    reference_directory: str,
-    parameter_dictionary: dict,
-    transport_profile_bounds: tuple[float, float],
-    set_div_transport=False,
-    n_proc=1,
-    timeout_hours=24
-) -> SolpsRun:
-    """
-    Evaluates SOLPS for the provided transport profiles and saves the results.
-
-    :param int run_number: \
-        The run number corresponding to the requested SOLPS run, used to name
-        directory in which the SOLPS output is stored.
-
-    :param str reference_directory: \
-
-    """
-    case_dir = reference_directory + f"run_{run_number}/"
-
-    build_solps_case(
-        reference_directory=reference_directory,
-        case_directory=case_dir,
-        parameter_dictionary=parameter_dictionary
-    )
-
-    # produce transport profiles defined by new point
-    chi_params = [parameter_dictionary[k] for k in conductivity_profile]
-    chi_radius = profile_radius_axis(chi_params, transport_profile_bounds)
-    chi = linear_transport_profile(chi_radius, chi_params, transport_profile_bounds)
-
-    D_params = [parameter_dictionary[k] for k in diffusivity_profile]
-    D_radius = profile_radius_axis(D_params, transport_profile_bounds)
-    D = linear_transport_profile(D_radius, D_params, transport_profile_bounds)
-
-    write_solps_transport_inputfile(
-        filename=case_dir + 'b2.transport.inputfile',
-        grid_dperp=D_radius,
-        values_dperp=D,
-        grid_chieperp=chi_radius,
-        values_chieperp=chi,
-        grid_chiiperp=chi_radius,
-        values_chiiperp=chi,
-        set_ana_visc_dperp=False,  # TODO - may need to be chosen via settings file
-        no_pflux=True,
-        no_div=set_div_transport
-    )
-
-    # Go to the SOLPS run directory to prepare execution
-    os.chdir(case_dir)
-
-    findstr = 'Submitted batch job'
-
-    if n_proc == 1:
-        start_run = subprocess.Popen("itmsubmit", stdout=subprocess.PIPE, shell=True)
-    if n_proc > 1:
-        start_run = subprocess.Popen(f'itmsubmit -m "-np {n_proc}"', stdout=subprocess.PIPE, shell=True)
-
-    start_run_output = start_run.communicate()[0]
-    os.chdir(reference_directory)
-    # Find the batch job number
-    tmp = str(start_run_output).find(findstr)
-    job_id = str(start_run_output)[tmp+len(findstr)+1:-3]
-
-    logging.info(f'[solps_interface] Submitted job {job_id}')
-    return SolpsRun(
-        run_id=job_id,
-        directory=case_dir,
-        run_number=run_number,
-        parameters=parameter_dictionary,
-        launch_time=time(),
-        timeout_hours=timeout_hours
-    )
 
 
 def evaluate_log_posterior(diagnostics, directory=None, filename=None) -> dict:
