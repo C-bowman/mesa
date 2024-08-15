@@ -13,7 +13,7 @@ class SimulationRun(ABC):
     run_id: str
     directory: str
     parameters: dict
-    iteration: int
+    run_number: int
     launch_time: float
     timeout_hours: float
     job_queue = None
@@ -49,21 +49,23 @@ class Simulation(ABC):
         self.timeout_hours = timeout_hours
 
     @abstractmethod
-    def launch(self, iteration=None, directory=None, parameters=None) -> SimulationRun:
+    def launch(
+        self, run_number: int, directory: str, parameters: dict
+    ) -> SimulationRun:
         pass
 
     @abstractmethod
-    def get_data(self, path=None):
+    def get_data(self, path: str):
         pass
 
     def create_case_directory(
         self,
-        iteration,
+        run_number: int,
         ref_directory: str,
         input_files: list[str],
-        filename_map: dict[str, str] = None
+        filename_map: dict[str, str] = None,
     ):
-        self.case_dir = f"{ref_directory}/iteration_{iteration}/"
+        self.case_dir = f"{ref_directory}/run_{run_number}/"
         self.reference_dir = ref_directory
         filename_map = {} if filename_map is None else filename_map
         # create the case directory and copy all the reference files
@@ -71,4 +73,6 @@ class Simulation(ABC):
         for file_name in input_files:
             if isfile(ref_directory + file_name):
                 case_name = filename_map.get(file_name, file_name)
-                subprocess.run(["cp", ref_directory + file_name, self.case_dir + case_name])
+                subprocess.run(
+                    ["cp", ref_directory + file_name, self.case_dir + case_name]
+                )
