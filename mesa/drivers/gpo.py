@@ -70,7 +70,7 @@ class GPOptimizer(Optimizer):
         while len(iteration_queue) > 0 or len(current_runs) > 0:
             # if the current number of runs is less than the allowed
             # maximum, then launch another
-            if len(current_runs) < self.concurrent_runs and len(iteration_queue) > 0:
+            if len(current_runs) < self.max_concurrent_runs and len(iteration_queue) > 0:
                 i = iteration_queue.pop()
 
                 # create the dictionary for this iteration
@@ -135,9 +135,7 @@ class GPOptimizer(Optimizer):
                         f">> iteration {run.iteration}, job {run.run_id} has crashed"
                     )
                     current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(
-                        ["rm", "-r", run.directory]
-                    )  # remove its run directory
+                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
 
                 elif run_status == "timed-out":
                     logging.info("[ time-out warning ]")
@@ -146,15 +144,13 @@ class GPOptimizer(Optimizer):
                     )
                     run.cancel()  # cancel the timed-out job
                     current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(
-                        ["rm", "-r", run.directory]
-                    )  # remove its run directory
+                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
 
             # if we're already at maximum concurrent runs, pause for a bit before re-checking
-            if len(current_runs) == self.concurrent_runs:
+            if len(current_runs) == self.max_concurrent_runs:
                 sleep(30)
 
-    def get_next_points(self):
+    def get_next_points(self) -> list[dict]:
         # load the training data
         df = read_hdf(self.training_file, "training")
         # break the loop if we've hit the max number of iterations
