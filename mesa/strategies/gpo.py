@@ -5,11 +5,11 @@ from numpy import array, ndarray
 from pandas import read_hdf
 from inference.gp import GpRegressor, GpOptimiser
 
-from mesa.strategies import Optimizer
+from mesa.strategies import Strategy
 from mesa.simulations import SimulationRun
 
 
-class GPOptimizer(Optimizer):
+class GPOptimizer(Strategy):
     def __init__(
         self,
         params,
