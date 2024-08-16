@@ -29,6 +29,10 @@ class SimulationRun(ABC):
     def cancel(self):
         subprocess.run(["scancel", self.run_id])
 
+    @abstractmethod
+    def get_results(self):
+        pass
+
     def __key(self):
         return self.run_id, self.directory, self.run_number, self.launch_time
 
@@ -57,10 +61,6 @@ class Simulation(ABC):
         *args,
         **kwargs,
     ) -> SimulationRun:
-        pass
-
-    @abstractmethod
-    def get_data(self, path: str):
         pass
 
     def create_case_directory(

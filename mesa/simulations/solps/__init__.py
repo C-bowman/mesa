@@ -46,6 +46,10 @@ class SolpsRun(SimulationRun):
         deletions = [f for f in output_files if f not in allowed_files]
         [os.remove(self.directory + f) for f in deletions]
 
+    def get_results(self) -> SolpsInterface:
+        results_path = self.directory + "balance.nc"
+        return SolpsInterface(balance_filepath=results_path)
+
     def cancel(self):
         subprocess.run(["scancel", self.run_id])
 
