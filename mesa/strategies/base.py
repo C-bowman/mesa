@@ -261,10 +261,3 @@ class Strategy(ABC):
                     """
                 )
         self.num_free_parameters = len(self.free_parameter_keys)
-
-
-class Optimizer(Strategy):
-    def __init__(
-        self, params, initial_sample_count=0, max_iterations=200, concurrent_runs=1
-    ):
-        super().__init__(params, initial_sample_count, concurrent_runs, max_iterations)

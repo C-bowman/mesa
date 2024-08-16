@@ -1,9 +1,9 @@
 import logging
 from pandas import read_hdf
-from mesa.strategies import Optimizer
+from mesa.strategies import Strategy
 
 
-class GeneticOptimizer(Optimizer):
+class GeneticOptimizer(Strategy):
     population: list
     generations: list
     mutation_rate = 0.1  # 10% mutation rate
