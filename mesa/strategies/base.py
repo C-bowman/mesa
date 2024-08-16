@@ -152,12 +152,9 @@ class Strategy(ABC):
             for run in current_runs_iterable:
                 run_status = run.status()
                 if run_status == "complete":
-                    # read the simulation data
-                    sim_data = self.simulation.get_data(run.directory)
-
                     # get the objective function value
                     objective_values = self.objective_function.evaluate(
-                        simulation_interface=sim_data
+                        simulation_interface=run.get_results()
                     )
 
                     # build a new row for the dataframe
