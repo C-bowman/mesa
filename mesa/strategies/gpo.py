@@ -1,6 +1,4 @@
 import logging
-import subprocess
-from time import sleep
 from numpy import array, ndarray
 from pandas import read_hdf
 from inference.gp import GpRegressor, GpOptimiser
@@ -20,7 +18,6 @@ class GPOptimizer(Strategy):
         mean_function=None,
         acquisition_function=None,
         cross_validation=False,
-        error_model="cauchy",
         trust_region_width=0.3,
     ):
         super().__init__(
@@ -34,135 +31,33 @@ class GPOptimizer(Strategy):
         self.mean_function = mean_function
         self.acquisition_function = acquisition_function
         self.cross_validation = cross_validation
-        self.error_model = error_model
         self.trust_region_width = trust_region_width
 
         self.opt_cols = [
-            "gaussian_logprob",
-            "cauchy_logprob",
-            "laplace_logprob",
-            "logistic_logprob",
             "prediction_mean",
             "prediction_error",
             "convergence_metric",
         ]
 
-    def initialize(self, sim, objfn, trainingfile):
-        super().initialize(sim, objfn, trainingfile)
-        df = read_hdf(self.training_file, "training")
-        current_iterations = 0 if df["iteration"].size == 0 else df["iteration"].max()
-        if current_iterations >= self.initial_sample_count:
-            raise ValueError(
-                f"""
-                [ MESA ERROR ]
-                >> An initial sampling count of {self.initial_sample_count} was specified
-                >> in the settings file, but the training data file
-                >> already contains {current_iterations} iterations.
-                """
-            )
-        # build a queue of the additional iterations which are required
-        iteration_queue = [
-            i for i in range(current_iterations + 1, self.initial_sample_count + 1)
-        ][::-1]
+    def get_initial_samples(self) -> list[dict]:
+        points = []
+        # create the dictionary for this iteration
+        for i in range(self.initial_sample_count):
+            # sample values for the free parameters
+            free_params = {
+                param: self.uniform_sample(bounds)
+                for param, bounds in self.optimization_bounds.items()
+            }
 
-        # loop until enough samples have been evaluated
-        current_runs = set()
-        while len(iteration_queue) > 0 or len(current_runs) > 0:
-            # if the current number of runs is less than the allowed
-            # maximum, then launch another
-            if len(current_runs) < self.max_concurrent_runs and len(iteration_queue) > 0:
-                i = iteration_queue.pop()
-
-                # create the dictionary for this iteration
-                row_dict = {}
-                # add values for all the fixed parameters
-                for key in self.fixed_parameter_keys:
-                    row_dict[key] = self.fixed_parameter_values[key]
-                # sample values for all the free parameters
-                for key in self.free_parameter_keys:
-                    row_dict[key] = self.uniform_sample(self.optimization_bounds[key])
-
-                logging.info(f"--- Starting iteration {i} ---")
-                logging.info("New parameters:")
-                logging.info([self.parameters[k] for k in self.free_parameter_keys])
-
-                # Run simulation for the new point
-                RunObj = self.simulation.launch(
-                    iteration=i, directory=self.reference_dir, parameters=row_dict
-                )
-
-                # store the iteration, launch time and parameters for the new run
-                current_runs.add(RunObj)
-
-            # loop through all currently running jobs to check if
-            # they have finished or timed-out
-            current_runs_iterable = [run for run in current_runs]
-            run: SimulationRun
-            for run in current_runs_iterable:
-                run_status = run.status()
-                if run_status == "complete":
-                    # read the simulation data
-                    sim_data = self.simulation.get_data(run.directory)
-
-                    # get the objective function value
-                    logprobs = self.objective_function.evaluate(
-                        simulation_interface=sim_data
-                    )
-
-                    # build a new row for the dataframe
-                    new_row = {
-                        "prediction_mean": None,
-                        "prediction_error": None,
-                        "prediction_metric": None,
-                    }
-                    new_row.update(logprobs)
-                    new_row.update(run.parameters)
-                    df = read_hdf(self.training_file, "training")
-                    df.loc[(run.iteration, 0), :] = new_row  # add the new row
-                    df.to_hdf(
-                        self.training_file, key="training", mode="w"
-                    )  # save the data
-
-                    # now the run results are saved we can stop tracking the run
-                    current_runs.remove(run)
-
-                    # clean up the run directory
-                    run.cleanup()
-
-                elif run_status == "crashed":
-                    logging.info("[ crash warning ]")
-                    logging.info(
-                        f">> iteration {run.iteration}, job {run.run_id} has crashed"
-                    )
-                    current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
-
-                elif run_status == "timed-out":
-                    logging.info("[ time-out warning ]")
-                    logging.info(
-                        f">> iteration {run.iteration}, job {run.run_id} has timed-out"
-                    )
-                    run.cancel()  # cancel the timed-out job
-                    current_runs.remove(run)  # remove it from the current runs
-                    subprocess.run(["rm", "-r", run.directory])  # remove run directory
-
-            # if we're already at maximum concurrent runs, pause for a bit before re-checking
-            if len(current_runs) == self.max_concurrent_runs:
-                sleep(30)
+            all_params = {**free_params, **self.fixed_parameters}
+            points.append(all_params)
+        return points
 
     def get_next_points(self) -> list[dict]:
         # load the training data
         df = read_hdf(self.training_file, "training")
-        # break the loop if we've hit the max number of iterations
-        if df.index[-1][0] >= self.max_iterations:
-            logging.info(
-                "[optimiser] Optimisation loop broken due to reaching the maximum allowed iterations"
-            )
-            return None
-
         # extract the training data
-        logprob_key = self.check_error_model(self.error_model)
-        log_posterior = df[logprob_key].to_numpy().copy()
+        objective = df["objective_value"].to_numpy().copy()
 
         # build a list of numpy arrays containing all the parameter values
         parameters = [array(t) for t in zip(*[df[k] for k in self.free_parameter_keys])]
@@ -179,8 +74,8 @@ class GPOptimizer(Strategy):
         grid_set = {self.grid_transform(p) for p in normalised_parameters}
 
         # use GPO to propose a new evaluation point
-        new_point, metrics = self.__propose_evaluation(
-            log_posterior=log_posterior,
+        new_point, metrics = self.__propose_gpo_evaluation(
+            objective_values=objective,
             normalised_parameters=normalised_parameters,
             kernel=self.covariance_kernel,
             mean_function=self.mean_function,
@@ -193,41 +88,33 @@ class GPOptimizer(Strategy):
         # back-transform to get the new point as model parameters
         new_parameters = self.reverse_normalisation(new_point, free_parameter_bounds)
 
-        # create the dictionary for this iteration
-        param_dict = {}
-
-        # add values for all the fixed parameters
-        for key in self.fixed_parameter_keys:
-            param_dict[key] = self.fixed_parameter_values[key]
-
         # add the new free parameter values
-        for key, val in zip(self.free_parameter_keys, new_parameters):
-            param_dict[key] = val
+        free_params = {
+            key: val for key, val in zip(self.free_parameter_keys, new_parameters)
+        }
+
+        param_dict = {**free_params, **self.fixed_parameters}
 
         # check to see if the grid-transformed new point is already in the evaluated set
         if self.grid_transform(new_point) in grid_set:
             raise ValueError(
-                """
-                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                The latest proposed evaluation is a point which has been
-                previously evaluated - this may indicate that a local
-                maximum has been reached.
-                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                """\n
+                \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                \rThe latest proposed evaluation is a point which has been
+                \rpreviously evaluated - this may indicate that a local
+                \rmaximum has been reached.
+                \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                 """
             )
 
         logging.info("New parameters:")
         logging.info([param_dict[k] for k in self.free_parameter_keys])
-        # logging.info('New chi parameters:')
-        # logging.info([param_dict[k] for k in self.simulation.conductivity_profile])
-        # logging.info('New D parameters:')
-        # logging.info([param_dict[k] for k in self.simulation.diffusivity_profile])
 
         return [param_dict]
 
-    def __propose_evaluation(
-        self,
-        log_posterior: ndarray,
+    @staticmethod
+    def __propose_gpo_evaluation(
+        objective_values: ndarray,
         normalised_parameters,
         kernel,
         mean_function,
@@ -237,8 +124,8 @@ class GPOptimizer(Strategy):
         trust_region_width=None,
     ):
         GP = GpRegressor(
-            normalised_parameters,
-            log_posterior,
+            x=normalised_parameters,
+            y=objective_values,
             cross_val=cross_validation,
             kernel=kernel,
             mean=mean_function,
@@ -251,7 +138,7 @@ class GPOptimizer(Strategy):
         # to a region around the current maximum
         if trust_region_width is not None:
             trhw = 0.5 * trust_region_width
-            max_ind = log_posterior.argmax()
+            max_ind = objective_values.argmax()
             max_point = normalised_parameters[max_ind]
             search_bounds = [
                 (max(0.0, v - trhw), min(1.0, v + trhw)) for v in max_point
@@ -261,8 +148,8 @@ class GPOptimizer(Strategy):
 
         # build the GP-optimiser
         GPopt = GpOptimiser(
-            normalised_parameters,
-            log_posterior,
+            x=normalised_parameters,
+            y=objective_values,
             hyperpars=GP.hyperpars,
             bounds=search_bounds,
             cross_val=cross_validation,
