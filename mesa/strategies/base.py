@@ -32,21 +32,18 @@ class Strategy(ABC):
     converged = bool
 
     # define dictionaries of parameters
-    fixed_parameter_values = {}
+    fixed_parameters = {}
     optimization_bounds = {}
     free_parameter_keys = []
-    fixed_parameter_keys = []
     opt_cols = []
 
     def __init__(
         self,
         params,
-        initial_sample_count: int,
         max_concurrent_runs: int,
         max_iterations: int,
     ):
         self.parameters = params
-        self.initial_sample_count = initial_sample_count
         self.max_concurrent_runs = max_concurrent_runs
         self.max_iterations = max_iterations
         self.__parse_params()
@@ -158,7 +155,7 @@ class Strategy(ABC):
                     )
 
                     # build a new row for the dataframe
-                    new_row = {"iteration": iteration, "run_number": run.run_number}
+                    new_row = {"run_number": run.run_number, "iteration": iteration}
                     new_row.update(objective_values)
                     new_row.update(run.parameters)
                     df = read_hdf(self.training_file, "training")
@@ -239,15 +236,12 @@ class Strategy(ABC):
         """
         self.parameter_keys = [key for key in self.parameters.keys()]
         # find which parameters are tuples of limits and which are a single number (fixed)
-        for key in self.parameter_keys:
-            if isinstance(self.parameters[key], tuple):
-                self.optimization_bounds[key] = self.parameters[key]
-                self.free_parameter_keys.append(key)
-            elif isinstance(self.parameters[key], float) or isinstance(
-                self.parameters[key], int
-            ):
-                self.fixed_parameter_values[key] = self.parameters[key]
-                self.fixed_parameter_keys.append(key)
+        for param, value in self.parameters.items():
+            if isinstance(value, tuple):
+                self.optimization_bounds[param] = value
+                self.free_parameter_keys.append(param)
+            elif isinstance(value, (float, int)):
+                self.fixed_parameters[param] = value
             else:
                 raise ValueError(
                     f"""
