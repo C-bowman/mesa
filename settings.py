@@ -12,7 +12,7 @@ training_data_file = 'training_data.h5'
 # ----------------------------------------------------------------------------
 from numpy import load
 from sims.instruments import ThomsonScattering
-from mesa.diagnostics import WeightedObjectiveFunction
+from mesa.simulations.solps import Solps, SolpsLikelihood
 
 instrument_data = load('# instrument data path #')
 TS = ThomsonScattering(
@@ -22,15 +22,11 @@ TS = ThomsonScattering(
     measurements=load('# measurement data path #')
 )
 
-dgns = [TS]
-wgts = [1.0]
-
-objective_function = WeightedObjectiveFunction(dgns,wgts)
+objective_function = SolpsLikelihood(diagnostics=[TS])
 
 # ----------------------------------------------------------------------------
 #   simulation settings
 # ----------------------------------------------------------------------------
-from mesa.simulations.solps import Solps
 simulation = Solps(
     exe='/pfs/work/g2hjame/solps-iter/software/solps',
     n_proc=6,
@@ -40,7 +36,7 @@ simulation = Solps(
 )
 
 # ----------------------------------------------------------------------------
-#   driver settings
+#   strategy settings
 # ----------------------------------------------------------------------------
 
 from mesa.strategies import GPOptimizer
@@ -92,6 +88,5 @@ strategy = GPOptimizer(
     mean_function=QuadraticMean,
     acquisition_function=UpperConfidenceBound(kappa=1.),
     cross_validation=False,
-    error_model='cauchy',
     trust_region_width=0.3
 )

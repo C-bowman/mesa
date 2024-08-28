@@ -11,6 +11,7 @@ from .transport import write_solps_transport_inputfile
 from .models import linear_transport_profile, profile_radius_axis
 from .parameters import conductivity_profile, diffusivity_profile, required_parameters
 from sims.interface import SolpsInterface
+from sims.instruments import Instrument
 from sims.likelihoods import gaussian_likelihood, cauchy_likelihood, laplace_likelihood, logistic_likelihood
 
 
@@ -204,39 +205,24 @@ def build_solps_case(
             )
 
 
-def evaluate_log_posterior(diagnostics, directory=None, filename=None) -> dict:
-    """
-    :param list diagnostics: \
-        A list of instrument objects from ``sims.instruments``.
+class SolpsLikelihood:
+    def __init__(self, diagnostics: list[Instrument]):
+        self.diagnostics = diagnostics
 
-    :param str directory: \
-        Path to the directory in which the solps results are stored.
+    def evaluate(self, simulation_interface: SolpsInterface) -> dict[str, float]:
+        # update the diagnostics with the latest SOLPS data
+        for dia in self.diagnostics:
+            dia.update_interface(simulation_interface)
 
-    :param str filename: \
-        Filename of the SOLPS balance file, "balance.nc" is used if not specified.
-
-    :return: The posterior log-probability
-    """
-
-    # build the path of the solps output file
-    fname = "balance.nc" if filename is None else filename
-    solps_path = directory + filename  # TODO - make sure this file name is right
-
-    # read the SOLPS data
-    solps_data = SolpsInterface(solps_path)
-
-    # update the diagnostics with the latest SOLPS data
-    for dia in diagnostics:
-        dia.update_interface(solps_data)
-
-    # calculate the log-probabilities
-    gaussian_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in diagnostics])
-    cauchy_logprob = sum([dia.log_likelihood(likelihood=cauchy_likelihood) for dia in diagnostics])
-    laplace_logprob = sum([dia.log_likelihood(likelihood=laplace_likelihood) for dia in diagnostics])
-    logistic_logprob = sum([dia.log_likelihood(likelihood=logistic_likelihood) for dia in diagnostics])
-    return {
-        "gaussian_logprob": gaussian_logprob,
-        "cauchy_logprob": cauchy_logprob,
-        "laplace_logprob": laplace_logprob,
-        "logistic_logprob": logistic_logprob,
-    }
+        # calculate the log-probabilities
+        gaussian_logprob = sum([dia.log_likelihood(likelihood=gaussian_likelihood) for dia in self.diagnostics])
+        cauchy_logprob = sum([dia.log_likelihood(likelihood=cauchy_likelihood) for dia in self.diagnostics])
+        laplace_logprob = sum([dia.log_likelihood(likelihood=laplace_likelihood) for dia in self.diagnostics])
+        logistic_logprob = sum([dia.log_likelihood(likelihood=logistic_likelihood) for dia in self.diagnostics])
+        return {
+            "gaussian_logprob": gaussian_logprob,
+            "cauchy_logprob": cauchy_logprob,
+            "laplace_logprob": laplace_logprob,
+            "logistic_logprob": logistic_logprob,
+            "objective_value": cauchy_logprob,
+        }
