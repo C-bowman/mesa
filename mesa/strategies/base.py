@@ -10,7 +10,7 @@ from numpy import array, ndarray
 from numpy.random import default_rng
 from pandas import read_hdf
 
-from mesa.diagnostics import WeightedObjectiveFunction
+from mesa.diagnostics import ObjectiveFunction
 from mesa.simulations import Simulation, SimulationRun
 
 
@@ -22,7 +22,7 @@ class Strategy(ABC):
     """
 
     simulation: Simulation
-    objective_function: WeightedObjectiveFunction
+    objective_function: ObjectiveFunction
     max_concurrent_runs: int
     initial_sample_count: int
     max_iterations: int
@@ -39,7 +39,8 @@ class Strategy(ABC):
 
     def __init__(
         self,
-        params,
+        params: dict,
+        simulation: Simulation,
         max_concurrent_runs: int,
         max_iterations: int,
     ):
@@ -49,13 +50,6 @@ class Strategy(ABC):
         self.__parse_params()
         self.rng = default_rng()
         self.converged = False
-
-    def initialize(
-        self,
-        simulation: Simulation,
-        objective_func: WeightedObjectiveFunction,
-        training_file: str,
-    ):
         self.simulation = simulation
         self.objective_function = objective_func
         self.reference_dir = os.path.dirname(os.path.abspath(training_file))
@@ -65,18 +59,6 @@ class Strategy(ABC):
     @abstractmethod
     def get_next_points(self) -> list[dict]:
         pass
-
-    def check_error_model(self, error_model):
-        if error_model.lower() in {"gaussian", "cauchy", "laplace", "logistic"}:
-            return error_model.lower() + "_logprob"
-        else:
-            raise ValueError(
-                f"""
-                [ MESA ERROR ]
-                >> The 'error_model' settings variable was specified as {error_model},
-                >> but must be either 'gaussian', 'cauchy', 'laplace' or 'logistic'.
-                """
-            )
 
     def run(self, new_points: list[dict] = None, start_iter=False):
         df = read_hdf(self.training_file, "training")

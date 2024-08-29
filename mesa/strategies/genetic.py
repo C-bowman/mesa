@@ -44,7 +44,7 @@ class GeneticOptimizer(Strategy):
                 individual[key] = (bnds[1] - bnds[0]) * self.rng.random() + bnds[0]
             # add the fixed values
             for key in self.fixed_parameter_keys:
-                individual[key] = self.fixed_parameter_values[key]
+                individual[key] = self.fixed_parameters[key]
             self.population.append(individual)
         self.generations.append(self.population)
 
