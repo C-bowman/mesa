@@ -119,20 +119,53 @@ def triangle_cdf(x: ndarray, start: float, end: float) -> ndarray:
     return y
 
 
+def smooth_ramp(
+    x: ndarray, start: float, end: float, gradient: float, right_side=True
+) -> tuple[ndarray, float]:
+    y = zeros(x.size)
+    dx = end - start
+    inside = (x > start) & (x <= end)
+    if right_side:
+        after = x > end
+        y[inside] = 0.5 * gradient * (x[inside] - start)**2 / dx
+        y[after] = gradient * (x[after] + (0.5 * dx - end))
+        boundary_val = gradient * 0.5 * dx
+    else:
+        after = x < start
+        y[inside] = -0.5 * gradient * (end - x[inside])**2 / dx
+        y[after] = gradient * (x[after] + (0.5 * dx - end))
+        boundary_val = -gradient * 0.5 * dx
+    return y, boundary_val
+
+
+def smooth_barrier_edge(
+    x: ndarray, start: float, end: float, gradient: float, right_side=True
+) -> ndarray:
+    ramp, bound_value = smooth_ramp(x, start, end, gradient, right_side=right_side)
+    cdf = triangle_cdf(x, start, end)
+    sigmoid = cdf if right_side else 1 - cdf
+    return ramp + sigmoid * (1 - bound_value)
+
+
 def smooth_transport_profile(x: ndarray, params: Sequence[float]) -> ndarray:
     """
     A smooth transport profile model with a continuous first-derivative where
     the flat sections of the core, transport barrier and SOL are connected using
     the CDF of a triangle distribution.
     """
-    y_core, y_tb, y_sol, x_tb, w_tb, core_rise, sol_rise = params
+    y_core, y_tb, y_sol, x_tb, w_tb, core_rise, sol_rise, core_grad, sol_grad = params
     left_end = x_tb - 0.5 * w_tb
     left_start = left_end - core_rise
-    left_side = 1 - triangle_cdf(x, left_start, left_end)
+    left_barrier = smooth_barrier_edge(
+        x, left_start, left_end, core_grad, right_side=False
+    )
+
     right_start = x_tb + 0.5 * w_tb
     right_end = right_start + sol_rise
-    right_side = triangle_cdf(x, right_start, right_end)
-    return left_side * (y_core - y_tb) + right_side * (y_sol - y_tb) + y_tb
+    right_barrier = smooth_barrier_edge(
+        x, right_start, right_end, sol_grad, right_side=True
+    )
+    return left_barrier * (y_core - y_tb) + right_barrier * (y_sol - y_tb) + y_tb
 
 
 def smooth_profile_knots(
