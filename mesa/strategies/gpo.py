@@ -2,6 +2,9 @@ import logging
 from numpy import array, ndarray
 from pandas import read_hdf
 from inference.gp import GpRegressor, GpOptimiser
+from inference.gp.covariance import CovarianceFunction
+from inference.gp.mean import MeanFunction
+from inference.gp.acquisition import AcquisitionFunction
 
 from mesa.strategies import Strategy
 from mesa.simulations import SimulationRun
@@ -10,23 +13,23 @@ from mesa.simulations import SimulationRun
 class GPOptimizer(Strategy):
     def __init__(
         self,
-        params,
+        params: dict,
+        covariance_kernel: CovarianceFunction,
+        mean_function: MeanFunction,
+        acquisition_function: AcquisitionFunction,
         initial_sample_count=20,
         max_iterations=200,
         concurrent_runs=1,
-        covariance_kernel=None,
-        mean_function=None,
-        acquisition_function=None,
         cross_validation=False,
         trust_region_width=0.3,
     ):
         super().__init__(
             self,
             params,
-            initial_sample_count=initial_sample_count,
             max_iterations=max_iterations,
             concurrent_runs=concurrent_runs,
         )
+        self.initial_sample_count = initial_sample_count
         self.covariance_kernel = covariance_kernel
         self.mean_function = mean_function
         self.acquisition_function = acquisition_function
