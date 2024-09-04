@@ -4,6 +4,7 @@ import os
 import subprocess
 from collections.abc import Sequence
 from abc import ABC, abstractmethod
+from os.path import isfile
 from time import sleep
 
 from numpy import array, ndarray
@@ -41,20 +42,25 @@ class Strategy(ABC):
         self,
         params: dict,
         simulation: Simulation,
+        objective_function: ObjectiveFunction,
         max_concurrent_runs: int,
         max_iterations: int,
+        training_file: str
     ):
         self.parameters = params
+        self.simulation = simulation
+        self.objective_function = objective_function
         self.max_concurrent_runs = max_concurrent_runs
         self.max_iterations = max_iterations
-        self.__parse_params()
-        self.rng = default_rng()
-        self.converged = False
-        self.simulation = simulation
-        self.objective_function = objective_func
+
+        assert isfile(training_file)
         self.reference_dir = os.path.dirname(os.path.abspath(training_file))
         self.training_file = training_file.split("/")[-1]
         os.chdir(self.reference_dir)
+
+        self.__validate_parameters()
+        self.rng = default_rng()
+        self.converged = False
 
     @abstractmethod
     def get_next_points(self) -> list[dict]:
@@ -211,15 +217,22 @@ class Strategy(ABC):
     def uniform_sample(self, bounds):
         return bounds[0] + (bounds[1] - bounds[0]) * self.rng.random()
 
-    def __parse_params(self):
+    def __validate_parameters(self):
         """
         Method to parse the input parameters. Need to check which are fixed
         and which are not and separate them
         """
         self.parameter_keys = [key for key in self.parameters.keys()]
         # find which parameters are tuples of limits and which are a single number (fixed)
+
         for param, value in self.parameters.items():
-            if isinstance(value, tuple):
+            valid_bounds = (
+                isinstance(value, tuple)
+                and len(value) == 2
+                and all(isinstance(v, (float, int)) for v in value)
+            )
+
+            if valid_bounds:
                 self.optimization_bounds[param] = value
                 self.free_parameter_keys.append(param)
             elif isinstance(value, (float, int)):
