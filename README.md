@@ -1,10 +1,13 @@
 # MESA
 
-MESA is a python package for optimizing simulation results. There
-are two simulations available: SOLPS and VSim.  For SOLPS, MESA matches 
-experiment and SOLPS autonomously.  It uses Gaussian-process optimization
- provided by [inference-tools](https://github.com/C-bowman/inference-tools)
-to maximise agreement between experimental data and SOLPS-ITER
-predictions without the need for hand-tuning of SOLPS parameters.
-For VSim, simulation setup parameters
-can be optimized to minimize/maximize some figure of merit.
+MESA is a python-based framework for automating the optimisation of
+simulation predictions to maximise a user-defined objective. MESA
+is designed to be extensible, such that new simulations and optimisation
+strategies can be added easily.
+
+The initial goal of development is to autonomously match SOLPS-ITER predictions to
+experimental data using Gaussian-process optimisation provided by
+[inference-tools](https://github.com/C-bowman/inference-tools).
+
+MESA is still under development - package documentation and example code will be added
+as development progresses.
