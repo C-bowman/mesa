@@ -11,7 +11,7 @@ training_data_file = 'training_data.h5'
 #   diagnostics settings
 # ----------------------------------------------------------------------------
 from numpy import load
-from mesa.diagnostics import WeightedObjectiveFunction, Spectrum
+from mesa.objectives import WeightedObjectiveFunction, Spectrum
 
 Spec = Spectrum(
     frequency=1.0e9,

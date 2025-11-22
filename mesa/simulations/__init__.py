@@ -1,8 +1,8 @@
 from dataclasses import dataclass
+from pathlib import Path
 import subprocess
-from os.path import isfile
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import Literal, Any
 
 
 RunStatus = Literal["running", "complete", "timed-out", "crashed"]
@@ -11,8 +11,8 @@ RunStatus = Literal["running", "complete", "timed-out", "crashed"]
 @dataclass(frozen=True)
 class SimulationRun(ABC):
     run_id: str
-    directory: str
-    parameters: dict
+    directory: Path
+    parameters: dict[str, Any]
     run_number: int
     launch_time: float
     timeout_hours: float
@@ -26,58 +26,46 @@ class SimulationRun(ABC):
     def cleanup(self):
         pass
 
+    @abstractmethod
     def cancel(self):
-        subprocess.run(["scancel", self.run_id])
+        pass
 
     @abstractmethod
-    def get_results(self):
+    def get_results(self) -> dict[str, Any]:
         pass
 
     def __key(self):
-        return self.run_id, self.directory, self.run_number, self.launch_time
+        return self.directory, self.run_number, self.launch_time
 
     def __hash__(self):
         return hash(self.__key())
 
 
 class Simulation(ABC):
-    exe: str
-    n_proc: int
-    timeout_hours: float
-    output_filename: str
-    reference_dir: str
-
-    def __init__(self, exe=None, n_proc=1, timeout_hours=1):
-        self.exe = exe
-        self.n_proc = n_proc
-        self.timeout_hours = timeout_hours
 
     @abstractmethod
     def launch(
         self,
         run_number: int,
-        reference_directory: str,
+        simulations_directory: Path,
         parameters: dict,
-        *args,
-        **kwargs,
     ) -> SimulationRun:
         pass
 
-    def create_case_directory(
-        self,
-        run_number: int,
-        ref_directory: str,
-        input_files: list[str],
-        filename_map: dict[str, str] = None,
-    ):
-        self.case_dir = f"{ref_directory}/run_{run_number}/"
-        self.reference_dir = ref_directory
-        filename_map = {} if filename_map is None else filename_map
-        # create the case directory and copy all the reference files
-        subprocess.run(["mkdir", self.case_dir])
-        for file_name in input_files:
-            if isfile(ref_directory + file_name):
-                case_name = filename_map.get(file_name, file_name)
-                subprocess.run(
-                    ["cp", ref_directory + file_name, self.case_dir + case_name]
-                )
+    # def create_case_directory(
+    #     self,
+    #     run_number: int,
+    #     simulations_directory: Path,
+    #     input_files: list[str],
+    #     filename_map: dict[str, str] = None,
+    # ):
+    #     case_dir = simulations_directory / f"run_{run_number}"
+    #     self.simulations_directory = simulations_directory
+    #     filename_map = {} if filename_map is None else filename_map
+    #     # create the case directory and copy all the reference files
+    #     case_dir.mkdir()
+    #     for file_name in input_files:
+    #         f = self.simulations_directory / file_name
+    #         if f.is_file():
+    #             case_name = filename_map.get(file_name, file_name)
+    #             subprocess.run(["cp", f, case_dir / case_name])

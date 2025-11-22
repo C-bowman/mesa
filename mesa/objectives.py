@@ -2,9 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class ObjectiveFunction(ABC):
-    """
-    Abstract base class for all diagnostic objects
-    """
+    name: str
 
     @abstractmethod
     def evaluate(self, simulation_interface) -> dict[str, float]:
@@ -21,11 +19,11 @@ class WeightedObjective(ObjectiveFunction):
 
         if len(self.weights) != len(self.objectives):
             raise ValueError(
-                f"""
-                [ MESA ERROR ]
-                >> In WeightedObjectiveFunction, the number of diagnostics specified 
-                >> is {len(self.objectives)}, but the number of weights specified in
-                >> is {len(self.weights)}. These must be the same.
+                f"""\n
+                \r[ MESA error ]
+                \r>> In WeightedObjectiveFunction, the number of diagnostics specified 
+                \r>> is {len(self.objectives)}, but the number of weights specified in
+                \r>> is {len(self.weights)}. These must be the same.
                 """
             )
 

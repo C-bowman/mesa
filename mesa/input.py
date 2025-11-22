@@ -6,7 +6,7 @@ from inspect import get_annotations
 
 from mesa.simulations import Simulation
 from mesa.strategies import Strategy
-from mesa.diagnostics import ObjectiveFunction
+from mesa.objectives import ObjectiveFunction
 
 
 @dataclass
@@ -16,17 +16,60 @@ class MesaInputs:
     objective_function: ObjectiveFunction
     evaluations_filepath: Path
     simulations_directory: Path
+    max_concurrent_runs: int
+    max_iterations: int
+    parameters: dict
 
     def __post_init__(self):
-        assert self.evaluations_filepath.exists()
-        assert self.evaluations_filepath.is_file()
-        assert self.simulations_directory.exists()
+        assert (
+            self.evaluations_filepath.is_file()
+            or not self.evaluations_filepath.exists()
+        )
         assert self.simulations_directory.is_dir()
 
+        valid_keys = all(isinstance(key, str) for key in self.parameters.keys())
+        if not valid_keys:
+            raise ValueError(
+                f"""\n
+                \r[ MESA error ]
+                \r>> All keys in the 'parameters' dictionary must be strings.
+                """
+            )
 
-def parse_inputs(
-    settings_filepath: Path | str
-) -> MesaInputs:
+        for param, value in self.parameters.items():
+            valid_value = (
+                isinstance(value, tuple)
+                and len(value) == 2
+                and all(isinstance(v, float) for v in value)
+            ) | isinstance(value, float)
+
+            if not valid_value:
+                raise ValueError(
+                    f"""\n
+                    \r[ MESA error ]
+                    \r>> All values in the 'parameters' dictionary should either
+                    \r>> be floats or a tuple of two floats.
+                    \r>> However, the value associated with the
+                    \r>> '{param}'
+                    \r>> key does not meet these requirements.
+                    """
+                )
+
+            if isinstance(value, tuple) and value[0] >= value[1]:
+                raise ValueError(
+                    f"""\n
+                    \r[ MESA error ]
+                    \r>> Bounds specified in the 'parameters' dictionary must be
+                    \r>> a tuple of two floats in the form (lower_bound, upper_bound)
+                    \r>> where upper_bound > lower_bound.
+                    \r>> However, the value associated with the
+                    \r>> '{param}'
+                    \r>> key does not meet these requirements.
+                    """
+                )
+
+
+def parse_input_module(settings_filepath: Path | str) -> MesaInputs:
     """
     Checks whether the settings file exists, and contains all necessary
     fields, then returns its contents as a dictionary.
@@ -82,8 +125,7 @@ def parse_inputs(
             )
 
     parsed_inputs = {
-        variable_name: settings[variable_name]
-        for variable_name in annotations.keys()
+        variable_name: settings[variable_name] for variable_name in annotations.keys()
     }
 
     return MesaInputs(**parsed_inputs)
