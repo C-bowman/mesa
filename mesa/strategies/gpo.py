@@ -1,5 +1,6 @@
 import logging
 from numpy import array, ndarray
+from numpy.random import default_rng
 from pandas import DataFrame, read_hdf
 from inference.gp import GpRegressor, GpOptimiser
 from inference.gp.covariance import CovarianceFunction
@@ -27,6 +28,7 @@ class GPOptimizer(Strategy):
         self.cross_validation = cross_validation
         self.trust_region_width = trust_region_width
         self.n_proc = n_processes
+        self.rng = default_rng()
 
         self.strategy_columns = [
             "prediction_mean",
@@ -34,21 +36,44 @@ class GPOptimizer(Strategy):
             "convergence_metric",
         ]
 
-    def get_initial_samples(self) -> list[dict]:
+    def propose_evaluations(
+        self,
+        evaluation_data: DataFrame,
+        optimization_bounds: dict[str, tuple[float, float]],
+        objective_name: str,
+    ) -> list[dict]:
+
+        n_evals = 0 if evaluation_data.empty else evaluation_data["run_number"].max()
+
+        if n_evals < self.initial_sample_count:
+            return self.get_initial_samples(
+                n_samples=self.initial_sample_count - n_evals,
+                optimization_bounds=optimization_bounds,
+            )
+        else:
+            return self.gpo_search(
+                evaluation_data=evaluation_data,
+                optimization_bounds=optimization_bounds,
+                objective_name=objective_name,
+            )
+
+    def get_initial_samples(
+        self,
+        n_samples: int,
+        optimization_bounds: dict[str, tuple[float, float]]
+    ) -> list[dict]:
         points = []
         # create the dictionary for this iteration
-        for i in range(self.initial_sample_count):
+        for i in range(n_samples):
             # sample values for the free parameters
             free_params = {
-                param: self.uniform_sample(bounds)
-                for param, bounds in self.optimization_bounds.items()
+                param: self.rng.uniform(low=lwr, high=upr)
+                for param, (lwr, upr) in optimization_bounds.items()
             }
-
-            all_params = {**free_params, **self.fixed_parameters}
-            points.append(all_params)
+            points.append(free_params)
         return points
 
-    def propose_evaluations(
+    def gpo_search(
         self,
         evaluation_data: DataFrame,
         optimization_bounds: dict[str, tuple[float, float]],
