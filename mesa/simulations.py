@@ -1,6 +1,4 @@
-from dataclasses import dataclass
 from pathlib import Path
-import subprocess
 from abc import ABC, abstractmethod
 from typing import Literal, Any
 
@@ -8,15 +6,11 @@ from typing import Literal, Any
 RunStatus = Literal["running", "complete", "timed-out", "crashed"]
 
 
-@dataclass(frozen=True)
 class SimulationRun(ABC):
-    run_id: str
+    parameters: dict[str, float]
     directory: Path
-    parameters: dict[str, Any]
     run_number: int
     launch_time: float
-    timeout_hours: float
-    job_queue = None
 
     @abstractmethod
     def status(self) -> RunStatus:
@@ -34,11 +28,9 @@ class SimulationRun(ABC):
     def get_results(self) -> dict[str, Any]:
         pass
 
-    def __key(self):
-        return self.directory, self.run_number, self.launch_time
-
+    @abstractmethod
     def __hash__(self):
-        return hash(self.__key())
+        pass
 
 
 class Simulation(ABC):

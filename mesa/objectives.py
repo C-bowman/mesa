@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class ObjectiveFunction(ABC):
     name: str
 
     @abstractmethod
-    def evaluate(self, simulation_interface) -> dict[str, float]:
+    def evaluate(self, simulation_results: dict[str, Any]) -> dict[str, float]:
         pass
 
 

@@ -1,5 +1,5 @@
 from pathlib import Path
-from pandas import DataFrame, read_hdf
+from pandas import DataFrame, read_hdf, concat
 from time import sleep
 import subprocess
 import logging
@@ -34,27 +34,35 @@ class Mesa:
         self.evaluations_filepath = evaluations_filepath
         self.simulations_directory = simulations_directory
         self.converged = False
-        self.metadata_keys = ["run_number", "iteration"]
-
 
         # split the parameters up into those which have free or fixed values
         self.free_parameter_keys = []
-        self.optimisation_bounds = {}
+        self.optimization_bounds = {}
         self.fixed_parameters = {}
         for param, value in self.parameters.items():
             if isinstance(value, tuple):
                 self.free_parameter_keys.append(param)
-                self.optimisation_bounds[param] = value
+                self.optimization_bounds[param] = value
             else:
                 self.fixed_parameters[param] = value
 
+        parameter_keys = [k for k in self.parameters.keys()]
+        objective_key = self.objective_function.name
+
+        self.metadata_keys = ["run_number", "iteration"]
+        self.data_columns = [*self.metadata_keys, objective_key, *parameter_keys]
+        self.data_types = {
+            **{k: "int64" for k in self.metadata_keys},
+            **{objective_key: "float64"},
+            **{k: "float64" for k in parameter_keys}
+        }
+
         if not self.evaluations_filepath.is_file():
-            self.__init_datafile()
+            self.__initialize_evaluations_data_file()
 
-    def run(self, new_points: list[dict] = None):
-        df = read_hdf(self.evaluations_filepath, "evaluations")
-
+    def run(self):
         while not self.converged:
+            df: DataFrame = read_hdf(self.evaluations_filepath)
             # get the current iteration number
             initial_run_number = 0 if df.empty else df["run_number"].max() + 1
             iteration = 0 if df.empty else df["iteration"].max() + 1
@@ -65,14 +73,13 @@ class Mesa:
             logging.info(f"--- Starting iteration {iteration} ---")
 
             # get next set of points for this iteration
-            if new_points is None:
-                new_free_params = self.strategy.propose_evaluations(
-                    evaluation_data=df,
-                    optimisation_bounds=self.optimisation_bounds,
-                    objective_name=self.objective_function.name
-                )
-                # join fixed / free parameters to get the full set
-                new_points = [f | self.fixed_parameters for f in new_free_params]
+            new_free_params = self.strategy.propose_evaluations(
+                evaluation_data=df,
+                optimization_bounds=self.optimization_bounds,
+                objective_name=self.objective_function.name
+            )
+            # join fixed / free parameters to get the full set
+            new_points = [f | self.fixed_parameters for f in new_free_params]
 
             self.launch_iteration(
                 iteration=iteration,
@@ -107,7 +114,7 @@ class Mesa:
                 ]
 
                 for run_number in runs_to_launch:
-                    point = pending_points[run_number]
+                    point = pending_points.pop()
                     logging.info(f"Run number {run_number} - New parameters:")
                     logging.info([point[k] for k in self.free_parameter_keys])
 
@@ -130,16 +137,23 @@ class Mesa:
                 if run_status == "complete":
                     # get the objective function value
                     objective_values = self.objective_function.evaluate(
-                        simulation_interface=run.get_results()
+                        simulation_results=run.get_results()
                     )
 
                     # build a new row for the dataframe
                     new_row = {"run_number": run.run_number, "iteration": iteration}
                     new_row.update(objective_values)
                     new_row.update(run.parameters)
-                    df = read_hdf(self.evaluations_filepath, "evaluations")
-                    df.loc[run.run_number, :] = new_row  # add the new row
-                    df.to_hdf(self.evaluations_filepath, key="evaluations", mode="w")  # save the data
+
+                    # build a dataframe for the latest evaluation
+                    new_df = DataFrame(new_row, index=[run.run_number])
+                    new_df.astype(self.data_types)
+
+                    # update the evaluation data with the new dataframe
+                    df: DataFrame = read_hdf(self.evaluations_filepath)
+                    df = new_df if df.empty else concat([df, new_df])
+                    df.sort_index(inplace=True)
+                    df.to_hdf(self.evaluations_filepath, key="evaluations", mode="w")
 
                     # now the run results are saved we can stop tracking the run
                     current_runs.remove(run)
@@ -150,7 +164,7 @@ class Mesa:
                 elif run_status == "crashed":
                     logging.info("[ crash warning ]")
                     logging.info(
-                        f">> run #{run.run_number}, job {run.run_id} has crashed"
+                        f">> run #{run.run_number} has crashed"
                     )
                     current_runs.remove(run)  # remove it from the current runs
                     subprocess.run(["rm", "-r", run.directory])  # remove run directory
@@ -160,7 +174,7 @@ class Mesa:
                 elif run_status == "timed-out":
                     logging.info("[ time-out warning ]")
                     logging.info(
-                        f">> iteration {run.run_number}, job {run.run_id} has timed-out"
+                        f">> iteration {run.run_number} has timed-out"
                     )
                     run.cancel()  # cancel the timed-out job
                     current_runs.remove(run)  # remove it from the current runs
@@ -170,20 +184,17 @@ class Mesa:
 
             # if we're still at the maximum concurrent runs, pause for a bit before re-checking
             if len(current_runs) == self.max_concurrent_runs:
-                sleep(10)
+                sleep(5)
 
-    def __init_datafile(self):
+    def __initialize_evaluations_data_file(self):
         # create the empty dataframe to store the evaluation data and save it to HDF
-        parameter_keys = [k for k in self.parameters.keys()]
-        objective_key = self.objective_function.name
-
-        df = DataFrame(columns=[*self.metadata_keys, objective_key, *parameter_keys])
+        df = DataFrame(columns=self.data_columns)
+        df.astype(self.data_types)
         df.to_hdf(
             self.evaluations_filepath,
             key="evaluations",
             mode="w",
         )
-        del df
 
     @classmethod
     def build_from_input_module(cls, input_module: Path):

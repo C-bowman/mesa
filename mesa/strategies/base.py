@@ -11,7 +11,7 @@ class Strategy(ABC):
     def propose_evaluations(
         self,
         evaluation_data: DataFrame,
-        optimisation_bounds: dict[str, tuple[float, float]],
+        optimization_bounds: dict[str, tuple[float, float]],
         objective_name: str,
     ) -> list[dict]:
         pass
