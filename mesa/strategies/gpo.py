@@ -1,80 +1,104 @@
 import logging
 from numpy import array, ndarray
-from pandas import read_hdf
+from numpy.random import default_rng
+from pandas import DataFrame, read_hdf
 from inference.gp import GpRegressor, GpOptimiser
 from inference.gp.covariance import CovarianceFunction
 from inference.gp.mean import MeanFunction
 from inference.gp.acquisition import AcquisitionFunction
 
 from mesa.strategies import Strategy
-from mesa.simulations import SimulationRun
 
 
 class GPOptimizer(Strategy):
     def __init__(
         self,
-        params: dict,
         covariance_kernel: CovarianceFunction,
         mean_function: MeanFunction,
         acquisition_function: AcquisitionFunction,
-        initial_sample_count=20,
-        max_iterations=200,
-        concurrent_runs=1,
-        cross_validation=False,
-        trust_region_width=0.3,
+        initial_sample_count: int = 20,
+        cross_validation: bool = False,
+        trust_region_width: float = 0.3,
+        n_processes: int = 1,
     ):
-        super().__init__(
-            self,
-            params,
-            max_iterations=max_iterations,
-            concurrent_runs=concurrent_runs,
-        )
         self.initial_sample_count = initial_sample_count
         self.covariance_kernel = covariance_kernel
         self.mean_function = mean_function
         self.acquisition_function = acquisition_function
         self.cross_validation = cross_validation
         self.trust_region_width = trust_region_width
+        self.n_proc = n_processes
+        self.rng = default_rng()
 
-        self.opt_cols = [
+        self.strategy_columns = [
             "prediction_mean",
             "prediction_error",
             "convergence_metric",
         ]
 
-    def get_initial_samples(self) -> list[dict]:
+    def propose_evaluations(
+        self,
+        evaluation_data: DataFrame,
+        optimization_bounds: dict[str, tuple[float, float]],
+        objective_name: str,
+    ) -> list[dict]:
+
+        n_evals = 0 if evaluation_data.empty else evaluation_data["run_number"].max()
+
+        if n_evals < self.initial_sample_count:
+            return self.get_initial_samples(
+                n_samples=self.initial_sample_count - n_evals,
+                optimization_bounds=optimization_bounds,
+            )
+        else:
+            return self.gpo_search(
+                evaluation_data=evaluation_data,
+                optimization_bounds=optimization_bounds,
+                objective_name=objective_name,
+            )
+
+    def get_initial_samples(
+        self,
+        n_samples: int,
+        optimization_bounds: dict[str, tuple[float, float]]
+    ) -> list[dict]:
         points = []
         # create the dictionary for this iteration
-        for i in range(self.initial_sample_count):
+        for i in range(n_samples):
             # sample values for the free parameters
             free_params = {
-                param: self.uniform_sample(bounds)
-                for param, bounds in self.optimization_bounds.items()
+                param: self.rng.uniform(low=lwr, high=upr)
+                for param, (lwr, upr) in optimization_bounds.items()
             }
-
-            all_params = {**free_params, **self.fixed_parameters}
-            points.append(all_params)
+            points.append(free_params)
         return points
 
-    def get_next_points(self) -> list[dict]:
-        # load the training data
-        df = read_hdf(self.training_file, "training")
+    def gpo_search(
+        self,
+        evaluation_data: DataFrame,
+        optimization_bounds: dict[str, tuple[float, float]],
+        objective_name: str,
+    ) -> list[dict]:
         # extract the training data
-        objective = df["objective_value"].to_numpy().copy()
+        objective = evaluation_data[objective_name].to_numpy().copy()
 
         # build a list of numpy arrays containing all the parameter values
-        parameters = [array(t) for t in zip(*[df[k] for k in self.free_parameter_keys])]
+        free_parameter_keys = list(optimization_bounds.keys())
+
+        # There will be a cleaner way to take a subset of columns
+        # and convert the rows to arrays
+        parameters = [
+            array(t) for t in zip(*[evaluation_data[k] for k in free_parameter_keys])
+        ]
 
         # convert the data to the normalised coordinates:
-        free_parameter_bounds = [
-            self.optimization_bounds[k] for k in self.free_parameter_keys
-        ]
+        free_parameter_bounds = [optimization_bounds[k] for k in free_parameter_keys]
         normalised_parameters = [
             self.normalise_parameters(p, free_parameter_bounds) for p in parameters
         ]
 
         # build the set of grid-transformed points
-        grid_set = {self.grid_transform(p) for p in normalised_parameters}
+        # grid_set = {self.grid_transform(p) for p in normalised_parameters}
 
         # use GPO to propose a new evaluation point
         new_point, metrics = self.__propose_gpo_evaluation(
@@ -84,7 +108,7 @@ class GPOptimizer(Strategy):
             mean_function=self.mean_function,
             acquisition=self.acquisition_function,
             cross_validation=self.cross_validation,
-            n_procs=self.simulation.n_proc,
+            n_procs=self.n_proc,
             trust_region_width=self.trust_region_width,
         )
 
@@ -93,27 +117,25 @@ class GPOptimizer(Strategy):
 
         # add the new free parameter values
         free_params = {
-            key: val for key, val in zip(self.free_parameter_keys, new_parameters)
+            key: val for key, val in zip(free_parameter_keys, new_parameters)
         }
 
-        param_dict = {**free_params, **self.fixed_parameters}
-
         # check to see if the grid-transformed new point is already in the evaluated set
-        if self.grid_transform(new_point) in grid_set:
-            raise ValueError(
-                """\n
-                \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                \rThe latest proposed evaluation is a point which has been
-                \rpreviously evaluated - this may indicate that a local
-                \rmaximum has been reached.
-                \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                """
-            )
+        # if self.grid_transform(new_point) in grid_set:
+        #     raise ValueError(
+        #         """\n
+        #         \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #         \rThe latest proposed evaluation is a point which has been
+        #         \rpreviously evaluated - this may indicate that a local
+        #         \rmaximum has been reached.
+        #         \r~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        #         """
+        #     )
 
         logging.info("New parameters:")
-        logging.info([param_dict[k] for k in self.free_parameter_keys])
+        logging.info(free_params)
 
-        return [param_dict]
+        return [free_params]
 
     @staticmethod
     def __propose_gpo_evaluation(
